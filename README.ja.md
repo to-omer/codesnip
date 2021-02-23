@@ -37,6 +37,7 @@ pub fn lcm(a: u64, b: u64) -> u64 {
 コマンドを実行すると、標準出力に指定したスニペットが出力されます。
 ```
 $ cargo codesnip --target=src/lib.rs bundle gcd
+// codesnip-guard: gcd
 pub fn gcd(mut a: u64, mut b: u64) -> u64 {
     while b != 0 {
         a %= b;
@@ -46,6 +47,7 @@ pub fn gcd(mut a: u64, mut b: u64) -> u64 {
 }
 
 $ cargo codesnip --target=src/lib.rs bundle lcm
+// codesnip-guard: gcd
 pub fn gcd(mut a: u64, mut b: u64) -> u64 {
     while b != 0 {
         a %= b;
@@ -53,11 +55,13 @@ pub fn gcd(mut a: u64, mut b: u64) -> u64 {
     }
     a
 }
+// codesnip-guard: lcm
 pub fn lcm(a: u64, b: u64) -> u64 {
     a / gcd(a, b) * b
 }
 
 $ cargo codesnip --target=src/lib.rs bundle lcm --excludes gcd
+// codesnip-guard: lcm
 pub fn lcm(a: u64, b: u64) -> u64 {
     a / gcd(a, b) * b
 }
