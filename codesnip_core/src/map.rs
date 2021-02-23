@@ -84,6 +84,10 @@ impl SnippetMap {
         excludes.insert(name);
         let visited = self.resolve_includes(&excludes, link.includes.iter().map(|s| s.as_str()));
         let mut contents = String::new();
+        if guard {
+            push_guard(&mut contents, name);
+        }
+        contents.push_str(link.contents.as_str());
         for include in visited.difference(&excludes).cloned() {
             if guard {
                 push_guard(&mut contents, include);
@@ -92,10 +96,6 @@ impl SnippetMap {
                 contents.push_str(nlink.contents.as_str());
             }
         }
-        if guard {
-            push_guard(&mut contents, name);
-        }
-        contents.push_str(link.contents.as_str());
         contents
     }
 }
