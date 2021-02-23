@@ -180,12 +180,14 @@ impl EntryArgInclude {
     }
 }
 
+#[allow(clippy::unnecessary_wraps)]
 impl EntryArgInline {
     fn parse_after_token(token: Ident, _input: ParseStream) -> syn::Result<Self> {
         Ok(Self { token })
     }
 }
 
+#[allow(clippy::unnecessary_wraps)]
 impl EntryArgNoInline {
     fn parse_after_token(token: Ident, _input: ParseStream) -> syn::Result<Self> {
         Ok(Self { token })
