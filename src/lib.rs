@@ -65,11 +65,7 @@ pub enum Command {
         output: PathBuf,
     },
     /// List names.
-    List {
-        /// Not hide `entry(name = "_...")`.
-        #[structopt(long)]
-        not_hide: bool,
-    },
+    List,
     /// Output snippet for VSCode.
     Snippet {
         /// Output file, default stdout.
@@ -133,8 +129,8 @@ impl Command {
             Self::Cache { output } => {
                 create_recursive(output)?.write_all(&bincode::serialize(&map)?)?;
             }
-            Self::List { not_hide } => {
-                let list = map.keys(!not_hide).join(" ");
+            Self::List => {
+                let list = map.map.keys().cloned().collect::<Vec<_>>().join(" ");
                 stdout().write_all(list.as_bytes())?;
             }
             Self::Snippet {

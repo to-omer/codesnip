@@ -98,17 +98,6 @@ impl SnippetMap {
         }
         contents
     }
-    pub fn keys(&self, hide: bool) -> Vec<&str> {
-        if hide {
-            self.map
-                .keys()
-                .filter(|name| !name.starts_with('_'))
-                .map(|name| name.as_ref())
-                .collect()
-        } else {
-            self.map.keys().map(|name| name.as_ref()).collect()
-        }
-    }
 }
 
 impl IntoIterator for SnippetMap {
