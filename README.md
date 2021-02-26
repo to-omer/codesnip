@@ -61,7 +61,7 @@ Lit:
   | "_..."                hidden
 
 ...:
-    [a-zA-Z_][a-zA-Z0-9_]*
+    No whitespace string
 ```
 
 ## Usage

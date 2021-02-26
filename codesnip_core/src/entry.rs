@@ -32,14 +32,14 @@ pub enum EntryArg {
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct EntryArgName {
     pub name_token: Option<(Ident, token::Eq)>,
-    pub name: LitStr,
+    pub name: NoWhitespaceLitStr,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct EntryArgInclude {
     pub include_token: Ident,
     pub paren_token: Paren,
-    pub includes: Punctuated<LitStr, Comma>,
+    pub includes: Punctuated<NoWhitespaceLitStr, Comma>,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
@@ -50,6 +50,11 @@ pub struct EntryArgInline {
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct EntryArgNoInline {
     pub token: Ident,
+}
+
+#[derive(Eq, PartialEq, Clone, Debug, Hash)]
+pub struct NoWhitespaceLitStr {
+    pub litstr: LitStr,
 }
 
 impl EntryArgs {
@@ -168,6 +173,19 @@ impl Parse for EntryArgName {
     }
 }
 
+impl Parse for NoWhitespaceLitStr {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let litstr: LitStr = input.parse()?;
+        if litstr.value().contains(char::is_whitespace) {
+            return Err(Error::new_spanned(
+                litstr,
+                "string literal should not contain whitespace",
+            ));
+        }
+        Ok(Self { litstr })
+    }
+}
+
 #[allow(clippy::eval_order_dependence)]
 impl EntryArgInclude {
     fn parse_after_token(include_token: Ident, input: ParseStream) -> syn::Result<Self> {
@@ -191,6 +209,12 @@ impl EntryArgInline {
 impl EntryArgNoInline {
     fn parse_after_token(token: Ident, _input: ParseStream) -> syn::Result<Self> {
         Ok(Self { token })
+    }
+}
+
+impl NoWhitespaceLitStr {
+    fn value(&self) -> String {
+        self.litstr.value()
     }
 }
 
@@ -238,5 +262,11 @@ impl ToTokens for EntryArgInline {
 impl ToTokens for EntryArgNoInline {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         self.token.to_tokens(tokens)
+    }
+}
+
+impl ToTokens for NoWhitespaceLitStr {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        self.litstr.to_tokens(tokens)
     }
 }
