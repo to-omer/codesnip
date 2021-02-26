@@ -173,6 +173,13 @@ ARGS:
 
 ##### list
 スニペットに含まれるキーをスペース区切りで列挙します。
+```
+USAGE:
+    cargo codesnip list [FLAGS]
+
+FLAGS:
+        --not-hide    Not hide `entry(name = "_...")`
+```
 
 ##### snippet
 VSCode向けの静的スニペットを生成します。
