@@ -89,7 +89,11 @@ pub enum Command {
         excludes: Vec<String>,
     },
     /// Verify
-    Verify,
+    Verify {
+        /// Show more outputs.
+        #[structopt(long)]
+        verbose: bool,
+    },
 }
 
 impl Opt {
@@ -155,8 +159,8 @@ impl Command {
                 let excludes = excludes.iter().map(|s| s.as_str()).collect();
                 stdout().write_all(map.bundle(&name, link, excludes, true).as_bytes())?;
             }
-            Self::Verify => {
-                verify::execute(map)?;
+            Self::Verify { verbose } => {
+                verify::execute(map, *verbose)?;
             }
         }
         Ok(())
