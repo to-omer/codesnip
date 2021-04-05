@@ -12,7 +12,7 @@ use Error::{FileNotFound, ModuleNotFound, ParseFile};
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("io error: {0}")]
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
     #[error("Failed to parse ")]
     ParseFile(PathBuf, #[source] syn::Error),
     #[error("Module `{0}` not found where `{}`.", .1.display())]
@@ -146,7 +146,7 @@ fn parse_file_from_path<P: AsRef<Path>>(path: P) -> Result<File, Error> {
     let mut file =
         std::fs::File::open(&path).map_err(|err| FileNotFound(path.as_ref().to_path_buf(), err))?;
     file.read_to_string(&mut content)?;
-    Ok(parse_file(&content).map_err(|err| ParseFile(path.as_ref().to_path_buf(), err))?)
+    parse_file(&content).map_err(|err| ParseFile(path.as_ref().to_path_buf(), err))
 }
 
 fn find_pathstr_from_attrs(attrs: &[Attribute]) -> Option<String> {
@@ -154,7 +154,7 @@ fn find_pathstr_from_attrs(attrs: &[Attribute]) -> Option<String> {
         .iter()
         .filter_map(|attr| attr.parse_meta().ok())
         .filter(|meta| meta.path().is_ident("path"))
-        .filter_map(|meta| match meta {
+        .find_map(|meta| match meta {
             Meta::NameValue(
                 MetaNameValue {
                     lit: Lit::Str(litstr),
@@ -164,7 +164,6 @@ fn find_pathstr_from_attrs(attrs: &[Attribute]) -> Option<String> {
             ) => Some(litstr.value()),
             _ => None,
         })
-        .next()
 }
 
 fn check_cfg(attrs: &mut Vec<Attribute>, cfg: &[Meta]) -> bool {
