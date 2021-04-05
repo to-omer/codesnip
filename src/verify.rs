@@ -45,9 +45,10 @@ pub fn execute(map: SnippetMap, verbose: bool) -> anyhow::Result<()> {
         pb.inc(1);
         if verbose {
             pb.println(format!(
-                "{:>12} {}",
+                "{:>12} {:.<45}.{:.>8} Byte",
                 style("Verified").green().bright(),
-                name
+                name,
+                contents.bytes().len()
             ));
         }
     });
