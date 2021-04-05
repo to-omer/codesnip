@@ -8,16 +8,16 @@ use syn::Item;
 pub trait SnippetMapExt {
     fn collect_entries(&mut self, items: &[Item], filter: Filter);
     fn format_all(&mut self);
-    fn to_vscode(&self, ignore_include: bool) -> BTreeMap<String, VSCode>;
+    fn to_vscode(&self, ignore_include: bool) -> BTreeMap<String, VsCode>;
 }
 
 #[derive(Serialize)]
-pub struct VSCode {
+pub struct VsCode {
     prefix: String,
     body: String,
     scope: String,
 }
-impl From<(String, String)> for VSCode {
+impl From<(String, String)> for VsCode {
     fn from((prefix, contents): (String, String)) -> Self {
         Self {
             prefix,
@@ -63,7 +63,7 @@ impl SnippetMapExt for SnippetMap {
         });
         pb.finish_and_clear();
     }
-    fn to_vscode(&self, ignore_include: bool) -> BTreeMap<String, VSCode> {
+    fn to_vscode(&self, ignore_include: bool) -> BTreeMap<String, VsCode> {
         self.map
             .iter()
             .map(|(name, link)| {

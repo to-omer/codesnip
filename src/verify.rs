@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use codesnip_core::SnippetMap;
+use console::style;
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use regex::RegexBuilder;
@@ -7,7 +8,7 @@ use std::process::{Command, Stdio};
 use std::{fs::File, io::Write as _, sync::atomic::AtomicBool};
 use tempfile::tempdir;
 
-pub fn execute(map: SnippetMap) -> anyhow::Result<()> {
+pub fn execute(map: SnippetMap, verbose: bool) -> anyhow::Result<()> {
     let ok = AtomicBool::new(true);
     let pb = ProgressBar::new(map.map.len() as u64);
     pb.set_style(
@@ -42,6 +43,14 @@ pub fn execute(map: SnippetMap) -> anyhow::Result<()> {
             ));
         }
         pb.inc(1);
+        if verbose {
+            pb.println(format!(
+                "{:>12} {:.<45}.{:.>8} Byte",
+                style("Verified").green().bright(),
+                name,
+                contents.bytes().len()
+            ));
+        }
     });
     pb.finish_and_clear();
     if ok.load(std::sync::atomic::Ordering::Relaxed) {
