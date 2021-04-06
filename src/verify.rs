@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use codesnip_core::SnippetMap;
-use console::style;
+use console::{colors_enabled_stderr, strip_ansi_codes, style};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use regex::RegexBuilder;
@@ -16,43 +16,74 @@ pub fn execute(map: SnippetMap, verbose: bool) -> anyhow::Result<()> {
             .template("{prefix:>12.green} [{bar:57}] {pos}/{len}: {msg}")
             .progress_chars("=> "),
     );
-    pb.set_prefix("Verifying");
+    pb.set_prefix("Checking");
     let re = RegexBuilder::new("error\\[.*$")
         .multi_line(true)
         .build()
         .unwrap();
+
+    let is_hidden = pb.is_hidden();
+    let colors_enabled = colors_enabled_stderr();
+
+    macro_rules! pb_println {
+        ($($t:tt)*) => {
+            if is_hidden {
+                if colors_enabled {
+                    eprintln!($($t)*);
+                } else {
+                    eprintln!("{}", strip_ansi_codes(&format!($($t)*)));
+                }
+            } else {
+                pb.println(format!($($t)*));
+            }
+        }
+    }
+
     map.map.par_iter().for_each(|(name, link)| {
         pb.set_message(name);
         for include in link.includes.iter() {
             if !map.map.contains_key(include) {
                 ok.store(false, std::sync::atomic::Ordering::Relaxed);
-                pb.println(format!("{}: Invalid include `{}`.", name, include));
+                pb_println!(
+                    "{}: Invalid include `{}` in {}.",
+                    style("warning").yellow().bright(),
+                    include,
+                    name
+                );
             }
         }
         let contents = map.bundle(name, link, Default::default(), false);
-        if let Ok(Some(err)) = check(&contents) {
-            ok.store(false, std::sync::atomic::Ordering::Relaxed);
-            let err = String::from_utf8_lossy(&err);
-            pb.println(re.find_iter(&err).map(|m| m.as_str()).fold(
-                format!("{}:", name),
-                |mut s, t| {
-                    s += "\n    ";
-                    s += t;
-                    s
-                },
-            ));
+        match check(&contents) {
+            Ok(Some(err)) => {
+                ok.store(false, std::sync::atomic::Ordering::Relaxed);
+                let err = String::from_utf8_lossy(&err);
+                pb_println!("{}: Compile failed in {}", style("error").red(), name);
+                for msg in re.find_iter(&err) {
+                    pb_println!("    {}", msg.as_str());
+                }
+            }
+            Ok(None) => {}
+            Err(err) => {
+                ok.store(false, std::sync::atomic::Ordering::Relaxed);
+                pb_println!("{}: {}", style("error").red(), err);
+            }
         }
         pb.inc(1);
         if verbose {
-            pb.println(format!(
+            pb_println!(
                 "{:>12} {:.<45}.{:.>8} Byte",
                 style("Verified").green().bright(),
                 name,
                 contents.bytes().len()
-            ));
+            );
         }
     });
     pb.finish_and_clear();
+    pb_println!(
+        "{:>12} {} Snippets",
+        style("Finished").green().bright(),
+        map.map.len()
+    );
     if ok.load(std::sync::atomic::Ordering::Relaxed) {
         Ok(())
     } else {
