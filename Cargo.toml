@@ -10,6 +10,10 @@ name = "cargo-codesnip"
 path = "src/main.rs"
 doc = false
 
+[[example]]
+name = "math"
+crate-type = ["lib"]
+
 [dependencies]
 codesnip_core = { path = "codesnip_core" }
 codesnip_attr = { path = "codesnip_attr" }

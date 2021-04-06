@@ -18,7 +18,7 @@ codesnip = { git = "https://github.com/to-omer/codesnip.git", package = "codesni
 
 次のように`#[codesnip::entry]`をスニペットにしたいitemに付けます。
 ```rust
-// src/lib.rs
+// examples/math.rs
 #[codesnip::entry]
 pub fn gcd(mut a: u64, mut b: u64) -> u64 {
     while b != 0 {
@@ -36,7 +36,7 @@ pub fn lcm(a: u64, b: u64) -> u64 {
 
 コマンドを実行すると、標準出力に指定したスニペットが出力されます。
 ```
-$ cargo codesnip --target=src/lib.rs bundle gcd
+$ cargo codesnip --target=examples/math.rs bundle gcd
 // codesnip-guard: gcd
 pub fn gcd(mut a: u64, mut b: u64) -> u64 {
     while b != 0 {
@@ -46,21 +46,21 @@ pub fn gcd(mut a: u64, mut b: u64) -> u64 {
     a
 }
 
-$ cargo codesnip --target=src/lib.rs bundle lcm
-// codesnip-guard: gcd
-pub fn gcd(mut a: u64, mut b: u64) -> u64 {
-    while b != 0 {
-        a %= b;
-        std::mem::swap(&mut a, &mut b);
-    }
-    a
-}
+$ cargo codesnip --target=examples/math.rs bundle lcm
 // codesnip-guard: lcm
 pub fn lcm(a: u64, b: u64) -> u64 {
     a / gcd(a, b) * b
 }
+// codesnip-guard: gcd
+pub fn gcd(mut a: u64, mut b: u64) -> u64 {
+    while b != 0 {
+        a %= b;
+        std::mem::swap(&mut a, &mut b);
+    }
+    a
+}
 
-$ cargo codesnip --target=src/lib.rs bundle lcm --excludes gcd
+$ cargo codesnip --target=examples/math.rs bundle lcm --excludes gcd
 // codesnip-guard: lcm
 pub fn lcm(a: u64, b: u64) -> u64 {
     a / gcd(a, b) * b
@@ -209,6 +209,13 @@ ARGS:
 
 ##### verify
 すべてのスニペットが単独でコンパイルできるかをチェックします。
+```
+USAGE:
+    cargo codesnip verify [FLAGS]
+
+FLAGS:
+        --verbose    Show more outputs
+```
 
 ## codesnip-vscode
 上記のコマンドを使用し、動的スニペットを実現するVSCode拡張機能です。
