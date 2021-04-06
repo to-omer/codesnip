@@ -1,6 +1,6 @@
 [package]
 name = "codesnip"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["to-omer <toomerhs@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
@@ -9,6 +9,10 @@ license = "MIT/Apache-2.0"
 name = "cargo-codesnip"
 path = "src/main.rs"
 doc = false
+
+[[example]]
+name = "math"
+crate-type = ["lib"]
 
 [dependencies]
 codesnip_core = { path = "codesnip_core" }
@@ -24,3 +28,4 @@ rayon = "1.4"
 anyhow = "1.0"
 tempfile = "3"
 regex = "1"
+cargo_metadata = "0.13"
