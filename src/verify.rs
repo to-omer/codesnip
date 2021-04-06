@@ -1,11 +1,14 @@
 use anyhow::Context as _;
+use cargo_metadata::diagnostic::{Diagnostic, DiagnosticLevel};
 use codesnip_core::SnippetMap;
-use console::{colors_enabled_stderr, strip_ansi_codes, style};
+use console::{colors_enabled_stderr, strip_ansi_codes, style, Color};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
-use regex::RegexBuilder;
-use std::process::{Command, Stdio};
 use std::{fs::File, io::Write as _, sync::atomic::AtomicBool};
+use std::{
+    iter::repeat,
+    process::{Command, Stdio},
+};
 use tempfile::tempdir;
 
 pub fn execute(map: SnippetMap, verbose: bool) -> anyhow::Result<()> {
@@ -17,10 +20,6 @@ pub fn execute(map: SnippetMap, verbose: bool) -> anyhow::Result<()> {
             .progress_chars("=> "),
     );
     pb.set_prefix("Checking");
-    let re = RegexBuilder::new("error\\[.*$")
-        .multi_line(true)
-        .build()
-        .unwrap();
 
     let is_hidden = pb.is_hidden();
     let colors_enabled = colors_enabled_stderr();
@@ -46,37 +45,40 @@ pub fn execute(map: SnippetMap, verbose: bool) -> anyhow::Result<()> {
                 ok.store(false, std::sync::atomic::Ordering::Relaxed);
                 pb_println!(
                     "{}: Invalid include `{}` in {}.",
-                    style("warning").yellow().bright(),
+                    style("warning").yellow(),
                     include,
                     name
                 );
             }
         }
         let contents = map.bundle(name, link, Default::default(), false);
-        match check(&contents) {
-            Ok(Some(err)) => {
-                ok.store(false, std::sync::atomic::Ordering::Relaxed);
-                let err = String::from_utf8_lossy(&err);
-                pb_println!("{}: Compile failed in {}", style("error").red(), name);
-                for msg in re.find_iter(&err) {
-                    pb_println!("    {}", msg.as_str());
+        match check(name, &contents) {
+            Ok((success, messages)) => {
+                if !success {
+                    ok.store(false, std::sync::atomic::Ordering::Relaxed);
+                    pb_println!("{:>12} {}", style("Failed").red(), name);
+                } else if verbose {
+                    pb_println!(
+                        "{:>12} {:.<45}.{:.>8} Byte",
+                        style("Verified").green().bright(),
+                        name,
+                        contents.bytes().len()
+                    );
+                }
+                if verbose {
+                    for message in messages {
+                        if let Some(message) = format_error_message(name, message) {
+                            pb_println!("{}", message);
+                        }
+                    }
                 }
             }
-            Ok(None) => {}
             Err(err) => {
                 ok.store(false, std::sync::atomic::Ordering::Relaxed);
                 pb_println!("{}: {}", style("error").red(), err);
             }
         }
         pb.inc(1);
-        if verbose {
-            pb_println!(
-                "{:>12} {:.<45}.{:.>8} Byte",
-                style("Verified").green().bright(),
-                name,
-                contents.bytes().len()
-            );
-        }
     });
     pb.finish_and_clear();
     pb_println!(
@@ -91,9 +93,9 @@ pub fn execute(map: SnippetMap, verbose: bool) -> anyhow::Result<()> {
     }
 }
 
-pub fn check(contents: &str) -> anyhow::Result<Option<Vec<u8>>> {
+fn check(name: &str, contents: &str) -> anyhow::Result<(bool, Vec<Diagnostic>)> {
     let dir = tempdir()?;
-    let lib = dir.path().join("lib.rs");
+    let lib = dir.path().join(name);
     {
         let mut file = File::create(&lib)?;
         file.write_all(contents.as_bytes())?;
@@ -105,15 +107,72 @@ pub fn check(contents: &str) -> anyhow::Result<Option<Vec<u8>>> {
             lib.as_os_str(),
             "--edition=2018".as_ref(),
             "--crate-type=lib".as_ref(),
-            "--error-format=short".as_ref(),
+            "--error-format=json".as_ref(),
             out_dir.as_ref(),
         ])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()?;
-    if !output.status.success() {
-        Ok(Some(output.stderr))
-    } else {
-        Ok(None)
+    let messages: Vec<Diagnostic> = String::from_utf8_lossy(&output.stderr)
+        .lines()
+        .filter_map(|line| serde_json::from_str(&line).ok())
+        .collect();
+    Ok((output.status.success(), messages))
+}
+
+fn format_error_message(name: &str, message: Diagnostic) -> Option<String> {
+    let mut s = String::new();
+    let code = message
+        .code
+        .as_ref()
+        .map(|code| format!("[{}]", code.code))
+        .unwrap_or_default();
+    let (color, status) = match message.level {
+        DiagnosticLevel::Error => (Color::Red, "error"),
+        DiagnosticLevel::Warning => (Color::Yellow, "warning"),
+        _ => {
+            return None;
+        }
+    };
+    s.push_str(&format!(
+        "{}: {}\n",
+        style(format!("{}{}", status, code)).fg(color),
+        &message.message
+    ));
+    for span in message.spans.iter() {
+        let k = format!("{}", span.line_end).len();
+        s.push_str(&format!(
+            "{:>k$} {}:{}:{}\n{:>k$}",
+            style("-->").cyan().bright(),
+            name,
+            span.line_start,
+            span.column_start,
+            style(" | ").cyan().bright(),
+            k = k + 3,
+        ));
+        for (line, text) in (span.line_start..=span.line_end).zip(span.text.iter()) {
+            s.push_str(&format!(
+                "\n{}{}\n{:>k$}",
+                style(format!("{:>k$} | ", line, k = k)).cyan().bright(),
+                &text.text,
+                style(" | ").cyan().bright(),
+                k = k + 3,
+            ));
+            s.extend(repeat(' ').take(text.highlight_start - 1));
+            s.push_str(
+                &style(
+                    repeat('^')
+                        .take(text.highlight_end - text.highlight_start)
+                        .collect::<String>(),
+                )
+                .fg(color)
+                .to_string(),
+            );
+        }
+        s.push_str(&format!(
+            " {}\n",
+            style(span.label.as_ref().cloned().unwrap_or_default()).fg(color)
+        ));
     }
+    Some(s)
 }
