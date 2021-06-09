@@ -1,4 +1,6 @@
-use crate::{entry::EntryArgs, format_with_rustfmt, AttributeExt as _, ItemExt as _, PathExt as _};
+use crate::{
+    entry::EntryArgs, format::FormatOption, AttributeExt as _, ItemExt as _, PathExt as _,
+};
 use quote::ToTokens as _;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
@@ -73,6 +75,9 @@ impl SnippetMap {
         guard: bool,
     ) -> String {
         fn push_guard(contents: &mut String, name: &str) {
+            if contents.chars().next_back().map_or(false, |ch| ch != '\n') {
+                contents.push('\n');
+            }
             contents.push_str("// codesnip-guard: ");
             contents.push_str(name);
             contents.push('\n');
@@ -147,8 +152,8 @@ impl LinkedSnippet {
         self.contents.push_str(&other.contents);
         self.includes.append(&mut other.includes);
     }
-    pub fn format(&mut self) -> bool {
-        if let Some(formatted) = format_with_rustfmt(&self.contents) {
+    pub fn format(&mut self, option: &FormatOption) -> bool {
+        if let Some(formatted) = option.format(&self.contents) {
             self.contents = formatted;
             true
         } else {

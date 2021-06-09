@@ -1,8 +1,37 @@
+use rust_minify::minify_opt;
 use std::{
     io::Write as _,
     path::Path,
     process::{Command, Stdio},
+    str::FromStr,
 };
+
+#[derive(Debug, Clone)]
+pub enum FormatOption {
+    Rustfmt,
+    Minify,
+}
+
+impl FromStr for FormatOption {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "rustfmt" => Ok(Self::Rustfmt),
+            "minify" => Ok(Self::Minify),
+            _ => Err("expected one of [rustfmt|minify]"),
+        }
+    }
+}
+
+impl FormatOption {
+    pub const POSSIBLE_VALUES: [&'static str; 2] = ["rustfmt", "minify"];
+    pub fn format(&self, content: &str) -> Option<String> {
+        match self {
+            Self::Rustfmt => format_with_rustfmt(content),
+            Self::Minify => minify_opt(content, true).ok(),
+        }
+    }
+}
 
 pub fn rustfmt_exits() -> bool {
     let rustfmt = Path::new(env!("CARGO_HOME")).join("bin").join("rustfmt");
