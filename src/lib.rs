@@ -6,7 +6,7 @@ pub use codesnip_attr::{entry, skip};
 
 use crate::{mapping::SnippetMapExt as _, parse::parse_files};
 use anyhow::Context as _;
-use codesnip_core::{Error::FileNotFound, Filter, SnippetMap};
+use codesnip_core::{Error::FileNotFound, Filter, FormatOption, SnippetMap};
 use serde_json::to_string;
 use std::{
     fs::File,
@@ -51,6 +51,15 @@ pub struct Config {
     /// Filter attributes by attributes path: e.g. --filter-attr=path
     #[structopt(long, value_name = "PATH", parse(try_from_str = parse_str::<syn::Path>))]
     pub filter_attr: Vec<syn::Path>,
+
+    /// Format option one of [rustfmt|minify].
+    #[structopt(
+        long,
+        value_name("FORMAT"),
+        possible_values(&FormatOption::POSSIBLE_VALUES),
+        default_value("rustfmt")
+    )]
+    pub format: FormatOption,
 
     #[structopt(subcommand)]
     pub cmd: Command,
@@ -116,7 +125,7 @@ impl Config {
         let mut map = SnippetMap::new();
         let items = parse_files(&self.target, &self.cfg)?;
         map.collect_entries(&items, self.filter());
-        map.format_all();
+        map.format_all(&self.format);
 
         let mut buf = Vec::new();
         for cache in self.use_cache.iter() {

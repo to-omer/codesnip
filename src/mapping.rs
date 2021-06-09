@@ -1,4 +1,4 @@
-use codesnip_core::{rustfmt_exits, Filter, SnippetMap};
+use codesnip_core::{rustfmt_exits, Filter, FormatOption, SnippetMap};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use serde::Serialize;
@@ -7,7 +7,7 @@ use syn::Item;
 
 pub trait SnippetMapExt {
     fn collect_entries(&mut self, items: &[Item], filter: Filter);
-    fn format_all(&mut self);
+    fn format_all(&mut self, option: &FormatOption);
     fn to_vscode(&self, ignore_include: bool) -> BTreeMap<String, VsCode>;
 }
 
@@ -42,8 +42,8 @@ impl SnippetMapExt for SnippetMap {
         }
         pb.finish_and_clear();
     }
-    fn format_all(&mut self) {
-        if !rustfmt_exits() {
+    fn format_all(&mut self, option: &FormatOption) {
+        if matches!(option, FormatOption::Rustfmt) && !rustfmt_exits() {
             eprintln!("warning: rustfmt not found.");
             return;
         }
@@ -56,7 +56,7 @@ impl SnippetMapExt for SnippetMap {
         pb.set_prefix("Formatting");
         self.map.par_iter_mut().for_each(|(name, link)| {
             pb.set_message(name);
-            if !link.format() {
+            if !link.format(&option) {
                 pb.println(format!("warning: Failed to format `{}`.", name));
             }
             pb.inc(1);

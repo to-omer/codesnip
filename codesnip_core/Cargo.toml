@@ -10,6 +10,7 @@ proc-macro2 = "1"
 quote = "1"
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+rust_minify = { git = "https://github.com/to-omer/rust_minify" }
 
 [[example]]
 name = "mod_path"

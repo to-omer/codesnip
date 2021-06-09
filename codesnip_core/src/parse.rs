@@ -273,3 +273,19 @@ fn test_parse() {
         assert!(false, "{}", err);
     }
 }
+
+#[test]
+fn test_cfg() {
+    let item: Item = syn::parse_str("#[cfg_attr(any(), rust_minify::skip)]struct X;").unwrap();
+    let meta = item.get_attributes().unwrap()[0].parse_meta().unwrap();
+    match meta {
+        Meta::List(list) => match &list.nested[0] {
+            NestedMeta::Meta(meta) => {
+                let cond = cfg_condition(&meta, &[]);
+                eprintln!("(meta,cond) = {:?}", (meta, cond));
+            }
+            _ => {}
+        },
+        _ => {}
+    }
+}
