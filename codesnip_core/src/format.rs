@@ -1,4 +1,4 @@
-use rust_minify::minify_opt;
+use rust_minify::{minify_opt, MinifyOption};
 use std::{
     io::Write as _,
     path::Path,
@@ -28,7 +28,14 @@ impl FormatOption {
     pub fn format(&self, content: &str) -> Option<String> {
         match self {
             Self::Rustfmt => format_with_rustfmt(content),
-            Self::Minify => minify_opt(content, true).ok(),
+            Self::Minify => minify_opt(
+                content,
+                &MinifyOption {
+                    remove_skip: true,
+                    add_rustfmt_skip: true,
+                },
+            )
+            .ok(),
         }
     }
 }
