@@ -3,7 +3,7 @@ use crate::{
 };
 use quote::ToTokens as _;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use syn::{
     parse::Parse as _,
     visit::{self, Visit},
@@ -12,7 +12,7 @@ use syn::{
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct SnippetMap {
-    pub map: HashMap<String, LinkedSnippet>,
+    pub map: BTreeMap<String, LinkedSnippet>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -42,7 +42,7 @@ impl SnippetMap {
         }
         self.map
             .get_mut(name)
-            .expect("HashMap is not working properly.")
+            .expect("BTreeMap is not working properly.")
     }
     pub fn extend_with_filter(&mut self, item: &Item, filter: Filter) {
         CollectEntries { map: self, filter }.visit_item(item);
@@ -118,7 +118,7 @@ impl SnippetMap {
 
 impl IntoIterator for SnippetMap {
     type Item = (String, LinkedSnippet);
-    type IntoIter = <HashMap<String, LinkedSnippet> as IntoIterator>::IntoIter;
+    type IntoIter = <BTreeMap<String, LinkedSnippet> as IntoIterator>::IntoIter;
     fn into_iter(self) -> Self::IntoIter {
         self.map.into_iter()
     }
