@@ -21,7 +21,7 @@ impl From<(String, String)> for VsCode {
     fn from((prefix, contents): (String, String)) -> Self {
         Self {
             prefix,
-            body: contents.replace("$", "\\$"),
+            body: contents.replace('$', "\\$"),
             scope: "rust".to_string(),
         }
     }
@@ -56,7 +56,7 @@ impl SnippetMapExt for SnippetMap {
         pb.set_prefix("Formatting");
         self.map.par_iter_mut().for_each(|(name, link)| {
             pb.set_message(name);
-            if !link.format(&option) {
+            if !link.format(option) {
                 pb.println(format!("warning: Failed to format `{}`.", name));
             }
             pb.inc(1);

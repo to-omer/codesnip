@@ -115,7 +115,7 @@ fn check(name: &str, contents: &str) -> anyhow::Result<(bool, Vec<Diagnostic>)> 
         .output()?;
     let messages: Vec<Diagnostic> = String::from_utf8_lossy(&output.stderr)
         .lines()
-        .filter_map(|line| serde_json::from_str(&line).ok())
+        .filter_map(|line| serde_json::from_str(line).ok())
         .collect();
     Ok((output.status.success(), messages))
 }
@@ -160,13 +160,9 @@ fn format_error_message(name: &str, message: Diagnostic) -> Option<String> {
             ));
             s.extend(repeat(' ').take(text.highlight_start - 1));
             s.push_str(
-                &style(
-                    repeat('^')
-                        .take(text.highlight_end - text.highlight_start)
-                        .collect::<String>(),
-                )
-                .fg(color)
-                .to_string(),
+                &style("^".repeat(text.highlight_end - text.highlight_start))
+                    .fg(color)
+                    .to_string(),
             );
         }
         s.push_str(&format!(

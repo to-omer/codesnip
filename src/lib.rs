@@ -166,7 +166,7 @@ impl Command {
                     .get(name)
                     .with_context(|| format!("snippet `{}` not found", name))?;
                 let excludes = excludes.iter().map(|s| s.as_str()).collect();
-                stdout().write_all(map.bundle(&name, link, excludes, true).as_bytes())?;
+                stdout().write_all(map.bundle(name, link, excludes, true).as_bytes())?;
             }
             Self::Verify { verbose } => {
                 verify::execute(map, *verbose)?;
