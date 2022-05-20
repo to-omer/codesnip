@@ -13,7 +13,7 @@ pub fn parse_files<P: AsRef<Path>>(targets: &[P], cfg: &[Meta]) -> Result<Vec<It
     );
     pb.set_prefix("Parsing");
     for target in targets.iter() {
-        pb.set_message(&target.as_ref().display().to_string());
+        pb.set_message(target.as_ref().display().to_string());
         items.append(&mut parse_file_recursive(target.as_ref().to_path_buf(), cfg)?.items);
         pb.inc(1);
     }

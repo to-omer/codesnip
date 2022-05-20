@@ -5,17 +5,17 @@ authors = ["to-omer <toomerhs@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-syn = { version = "1", features = [
+proc-macro2 = "1.0.39"
+quote = "1.0.18"
+rust_minify = "0.1.0"
+serde = { version = "1.0.137", features = ["derive"] }
+syn = { version = "1.0.95", features = [
     "full",
     "extra-traits",
     "visit",
     "visit-mut",
 ] }
-proc-macro2 = "1"
-quote = "1"
-thiserror = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-rust_minify = { git = "https://github.com/to-omer/rust_minify" }
+thiserror = "1.0.31"
 
 [[example]]
 name = "mod_path"

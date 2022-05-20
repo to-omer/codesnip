@@ -55,7 +55,7 @@ impl SnippetMapExt for SnippetMap {
         );
         pb.set_prefix("Formatting");
         self.map.par_iter_mut().for_each(|(name, link)| {
-            pb.set_message(name);
+            pb.set_message(name.to_owned());
             if !link.format(option) {
                 pb.println(format!("warning: Failed to format `{}`.", name));
             }

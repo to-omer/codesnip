@@ -39,7 +39,7 @@ pub fn execute(map: SnippetMap, verbose: bool) -> anyhow::Result<()> {
     }
 
     map.map.par_iter().for_each(|(name, link)| {
-        pb.set_message(name);
+        pb.set_message(name.to_owned());
         for include in link.includes.iter() {
             if !map.map.contains_key(include) {
                 ok.store(false, std::sync::atomic::Ordering::Relaxed);

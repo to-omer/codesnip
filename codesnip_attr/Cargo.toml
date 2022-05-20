@@ -9,7 +9,7 @@ proc-macro = true
 doc = false
 
 [dependencies]
-codesnip_core = { path = "../codesnip_core" }
-syn = { version = "1", features = ["full"] }
-proc-macro2 = "1"
-quote = "1"
+codesnip_core = { version = "0.2.2", path = "../codesnip_core" }
+proc-macro2 = "1.0.39"
+quote = "1.0.18"
+syn = { version = "1.0.95", features = ["full"] }
