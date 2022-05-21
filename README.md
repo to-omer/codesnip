@@ -1,46 +1,74 @@
 # codesnip
 
-[README 日本語](README.ja.md)
-
 ## Install
 ```
 $ rustup component add rustfmt
-$ cargo install --git https://github.com/to-omer/codesnip.git
+$ cargo install codesnip
+```
+
+## Dependencies
+```toml
+[dependencies]
+codesnip = { version = "0.1.0", package = "codesnip_attr" }
 ```
 
 ## Example
+Add `#[codesnip::entry]` to snippet item.
 ```rust
-#[codesnip::entry(inline)]
-/// doc of `abc`
-pub mod abc {
-    /// doc of `a`
-    pub fn a() {}
-    /// doc of `b`
-    pub fn b() {}
-    #[codesnip::skip]
-    /// doc of `c`
-    pub fn c() {}
-    #[cfg(test)]
-    mod tests {
-        fn test_a() {
-            super::a();
-        }
+// examples/math.rs
+#[codesnip::entry]
+pub fn gcd(mut a: u64, mut b: u64) -> u64 {
+    while b != 0 {
+        a %= b;
+        std::mem::swap(&mut a, &mut b);
     }
+    a
+}
+
+#[codesnip::entry(include("gcd"))]
+pub fn lcm(a: u64, b: u64) -> u64 {
+    a / gcd(a, b) * b
 }
 ```
 
-This code extracted with NAME `abc`  as below.
+This code extracted as below.
 
-```rust
-/// doc of `a`
-pub fn a() {}
-/// doc of `b`
-pub fn b() {}
+```sh
+$ cargo codesnip --target=examples/math.rs bundle gcd
+// codesnip-guard: gcd
+pub fn gcd(mut a: u64, mut b: u64) -> u64 {
+    while b != 0 {
+        a %= b;
+        std::mem::swap(&mut a, &mut b);
+    }
+    a
+}
+
+$ cargo codesnip --target=examples/math.rs bundle lcm
+// codesnip-guard: lcm
+pub fn lcm(a: u64, b: u64) -> u64 {
+    a / gcd(a, b) * b
+}
+// codesnip-guard: gcd
+pub fn gcd(mut a: u64, mut b: u64) -> u64 {
+    while b != 0 {
+        a %= b;
+        std::mem::swap(&mut a, &mut b);
+    }
+    a
+}
+
+$ cargo codesnip --target=examples/math.rs bundle lcm --excludes gcd
+// codesnip-guard: lcm
+pub fn lcm(a: u64, b: u64) -> u64 {
+    a / gcd(a, b) * b
+}
 ```
 
 ## Format
 ```
-#[codesnip::entry (AttrList,*)?]
+#[codesnip::entry (AttrList,*)?]       add item for snippet
+#[codesnip::skip]                      skip item for snippet
 
 AttrList:
     NAME | INCLUDE | INLINE
@@ -91,6 +119,3 @@ SUBCOMMANDS:
 
 ## VSCode Extension
 [codesnip-vscode](https://github.com/to-omer/codesnip-vscode.git)
-
-## License
-Dual-licensed under [MIT](https://opensource.org/licenses/MIT) or [Apache-2.0](http://www.apache.org/licenses/LICENSE-2.0).
