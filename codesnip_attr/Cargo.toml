@@ -1,11 +1,11 @@
 [package]
 name = "codesnip_attr"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["to-omer <toomerhs@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
 description = "snippet bundle tool"
-repository = "https://github.com/to-omer/codesnip_attr"
+repository = "https://github.com/to-omer/codesnip"
 documentation = "https://docs.rs/codesnip_attr"
 
 [lib]
@@ -13,7 +13,10 @@ proc-macro = true
 doc = false
 
 [dependencies]
-codesnip_core = { version = "0.3.0", path = "../codesnip_core" }
+codesnip_core = { version = "0.3.0", path = "../codesnip_core", optional = true }
 proc-macro2 = "1.0.39"
 quote = "1.0.18"
 syn = { version = "1.0.95", features = ["full"] }
+
+[features]
+check = ["codesnip_core"]
