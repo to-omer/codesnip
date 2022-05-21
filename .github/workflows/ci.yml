@@ -111,7 +111,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: install
-          args: --path . -v --locked
+          args: --path ./codesnip -v --locked
 
       - name: Create an asset
         id: asset
