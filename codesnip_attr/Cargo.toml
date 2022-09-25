@@ -1,6 +1,6 @@
 [package]
 name = "codesnip_attr"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["to-omer <toomerhs@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -13,10 +13,10 @@ proc-macro = true
 doc = false
 
 [dependencies]
-codesnip_core = { version = "0.3.0", path = "../codesnip_core", optional = true }
-proc-macro2 = "1.0.39"
-quote = "1.0.18"
-syn = { version = "1.0.95", features = ["full"] }
+codesnip_core = { version = "0.3.1", path = "../codesnip_core", optional = true }
+proc-macro2 = "1.0.44"
+quote = "1.0.21"
+syn = { version = "1.0.100", features = ["full"] }
 
 [features]
 check = ["codesnip_core"]

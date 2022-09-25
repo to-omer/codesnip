@@ -11,12 +11,13 @@ use std::{
 };
 use tempfile::tempdir;
 
-pub fn execute(map: SnippetMap, verbose: bool) -> anyhow::Result<()> {
+pub fn execute(map: SnippetMap, toolchain: &str, verbose: bool) -> anyhow::Result<()> {
     let ok = AtomicBool::new(true);
     let pb = ProgressBar::new(map.map.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar()
             .template("{prefix:>12.green} [{bar:57}] {pos}/{len}: {msg}")
+            .unwrap()
             .progress_chars("=> "),
     );
     pb.set_prefix("Checking");
@@ -52,7 +53,7 @@ pub fn execute(map: SnippetMap, verbose: bool) -> anyhow::Result<()> {
             }
         }
         let contents = map.bundle(name, link, Default::default(), false);
-        match check(name, &contents) {
+        match check(name, &contents, toolchain) {
             Ok((success, messages)) => {
                 if !success {
                     ok.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -93,7 +94,7 @@ pub fn execute(map: SnippetMap, verbose: bool) -> anyhow::Result<()> {
     }
 }
 
-fn check(name: &str, contents: &str) -> anyhow::Result<(bool, Vec<Diagnostic>)> {
+fn check(name: &str, contents: &str, toolchain: &str) -> anyhow::Result<(bool, Vec<Diagnostic>)> {
     let dir = tempdir()?;
     let lib = dir.path().join(name);
     {
@@ -104,6 +105,7 @@ fn check(name: &str, contents: &str) -> anyhow::Result<(bool, Vec<Diagnostic>)> 
     out_dir.push(dir.path().as_os_str());
     let output = Command::new("rustc")
         .args(&[
+            format!("+{}", toolchain).as_ref(),
             lib.as_os_str(),
             "--edition=2018".as_ref(),
             "--crate-type=lib".as_ref(),

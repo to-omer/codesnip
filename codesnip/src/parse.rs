@@ -9,6 +9,7 @@ pub fn parse_files<P: AsRef<Path>>(targets: &[P], cfg: &[Meta]) -> Result<Vec<It
     pb.set_style(
         ProgressStyle::default_bar()
             .template("{prefix:>12.green} [{bar:57}] {pos}/{len}: {msg}")
+            .unwrap()
             .progress_chars("=> "),
     );
     pb.set_prefix("Parsing");

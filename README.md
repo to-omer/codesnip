@@ -9,7 +9,7 @@ $ cargo install codesnip
 ## Dependencies
 ```toml
 [dependencies]
-codesnip = { version = "0.2.0", package = "codesnip_attr" }
+codesnip = { version = "0.2.1", package = "codesnip_attr" }
 ```
 
 ## Example
@@ -107,6 +107,7 @@ OPTIONS:
         --cfg <SPEC>...            Configure the environment: e.g. --cfg=nightly
         --filter-item <PATH>...    Filter items by attributes path: e.g. --filter-item=test
         --filter-attr <PATH>...    Filter attributes by attributes path: e.g. --filter-attr=path
+        --format <FORMAT>          Format option one of [rustfmt|minify] [default: rustfmt]
 
 SUBCOMMANDS:
     cache      Save analyzed data into file
