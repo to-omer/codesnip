@@ -93,12 +93,15 @@ pub enum Command {
         /// snippet name.
         #[structopt(value_name = "NAME")]
         name: String,
-        /// excludes
+        /// excludes.
         #[structopt(short, long, value_name = "NAME")]
         excludes: Vec<String>,
     },
     /// Verify
     Verify {
+        #[structopt(long, value_name = "TOOLCHAIN", default_value = "stable")]
+        /// release channel or custom toolchain.
+        toolchain: String,
         /// Show more outputs.
         #[structopt(long)]
         verbose: bool,
@@ -168,8 +171,8 @@ impl Command {
                 let excludes = excludes.iter().map(|s| s.as_str()).collect();
                 stdout().write_all(map.bundle(name, link, excludes, true).as_bytes())?;
             }
-            Self::Verify { verbose } => {
-                verify::execute(map, *verbose)?;
+            Self::Verify { toolchain, verbose } => {
+                verify::execute(map, toolchain, *verbose)?;
             }
         }
         Ok(())

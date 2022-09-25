@@ -1,6 +1,6 @@
 [package]
 name = "codesnip_core"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["to-omer <toomerhs@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -9,17 +9,17 @@ repository = "https://github.com/to-omer/codesnip_core"
 documentation = "https://docs.rs/codesnip_core"
 
 [dependencies]
-proc-macro2 = "1.0.39"
-quote = "1.0.18"
+proc-macro2 = "1.0.44"
+quote = "1.0.21"
 rust_minify = "0.1.0"
-serde = { version = "1.0.137", features = ["derive"] }
-syn = { version = "1.0.95", features = [
+serde = { version = "1.0.145", features = ["derive"] }
+syn = { version = "1.0.100", features = [
     "full",
     "extra-traits",
     "visit",
     "visit-mut",
 ] }
-thiserror = "1.0.31"
+thiserror = "1.0.36"
 
 [[example]]
 name = "mod_path"

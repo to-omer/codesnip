@@ -33,6 +33,7 @@ impl SnippetMapExt for SnippetMap {
         pb.set_style(
             ProgressStyle::default_bar()
                 .template("{prefix:>12.green} [{bar:57}] {pos}/{len}")
+                .unwrap()
                 .progress_chars("=> "),
         );
         pb.set_prefix("Collecting");
@@ -51,6 +52,7 @@ impl SnippetMapExt for SnippetMap {
         pb.set_style(
             ProgressStyle::default_bar()
                 .template("{prefix:>12.green} [{bar:57}] {pos}/{len}: {msg}")
+                .unwrap()
                 .progress_chars("=> "),
         );
         pb.set_prefix("Formatting");
