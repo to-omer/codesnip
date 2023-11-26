@@ -11,7 +11,12 @@ use std::{
 };
 use tempfile::tempdir;
 
-pub fn execute(map: SnippetMap, toolchain: &str, verbose: bool) -> anyhow::Result<()> {
+pub fn execute(
+    map: SnippetMap,
+    toolchain: &str,
+    edition: &str,
+    verbose: bool,
+) -> anyhow::Result<()> {
     let ok = AtomicBool::new(true);
     let pb = ProgressBar::new(map.map.len() as u64);
     pb.set_style(
@@ -53,7 +58,7 @@ pub fn execute(map: SnippetMap, toolchain: &str, verbose: bool) -> anyhow::Resul
             }
         }
         let contents = map.bundle(name, link, Default::default(), false);
-        match check(name, &contents, toolchain) {
+        match check(name, &contents, toolchain, edition) {
             Ok((success, messages)) => {
                 if !success {
                     ok.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -94,7 +99,12 @@ pub fn execute(map: SnippetMap, toolchain: &str, verbose: bool) -> anyhow::Resul
     }
 }
 
-fn check(name: &str, contents: &str, toolchain: &str) -> anyhow::Result<(bool, Vec<Diagnostic>)> {
+fn check(
+    name: &str,
+    contents: &str,
+    toolchain: &str,
+    edition: &str,
+) -> anyhow::Result<(bool, Vec<Diagnostic>)> {
     let dir = tempdir()?;
     let lib = dir.path().join(name);
     {
@@ -107,7 +117,7 @@ fn check(name: &str, contents: &str, toolchain: &str) -> anyhow::Result<(bool, V
         .args(&[
             format!("+{}", toolchain).as_ref(),
             lib.as_os_str(),
-            "--edition=2018".as_ref(),
+            format!("--edition={}", edition).as_ref(),
             "--crate-type=lib".as_ref(),
             "--error-format=json".as_ref(),
             out_dir.as_ref(),

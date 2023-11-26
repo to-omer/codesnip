@@ -102,6 +102,9 @@ pub enum Command {
         #[structopt(long, value_name = "TOOLCHAIN", default_value = "stable")]
         /// release channel or custom toolchain.
         toolchain: String,
+        #[structopt(long, value_name = "EDITION", default_value = "2021")]
+        /// edition of the compiler.
+        edition: String,
         /// Show more outputs.
         #[structopt(long)]
         verbose: bool,
@@ -171,8 +174,12 @@ impl Command {
                 let excludes = excludes.iter().map(|s| s.as_str()).collect();
                 stdout().write_all(map.bundle(name, link, excludes, true).as_bytes())?;
             }
-            Self::Verify { toolchain, verbose } => {
-                verify::execute(map, toolchain, *verbose)?;
+            Self::Verify {
+                toolchain,
+                verbose,
+                edition,
+            } => {
+                verify::execute(map, toolchain, edition, *verbose)?;
             }
         }
         Ok(())
