@@ -136,7 +136,7 @@ impl Config {
         let mut buf = Vec::new();
         for cache in self.use_cache.iter() {
             buf.clear();
-            let mut file = File::open(&cache).map_err(|err| FileNotFound(cache.clone(), err))?;
+            let mut file = File::open(cache).map_err(|err| FileNotFound(cache.clone(), err))?;
             file.read_to_end(&mut buf)?;
             let mapt: SnippetMap = bincode::deserialize(&buf)?;
             map.extend(mapt);

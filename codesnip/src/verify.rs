@@ -114,7 +114,7 @@ fn check(
     let mut out_dir: std::ffi::OsString = "--out-dir=".to_owned().into();
     out_dir.push(dir.path().as_os_str());
     let output = Command::new("rustc")
-        .args(&[
+        .args([
             format!("+{}", toolchain).as_ref(),
             lib.as_os_str(),
             format!("--edition={}", edition).as_ref(),

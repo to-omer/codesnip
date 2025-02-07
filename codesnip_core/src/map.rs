@@ -75,7 +75,7 @@ impl SnippetMap {
         guard: bool,
     ) -> String {
         fn push_guard(contents: &mut String, name: &str) {
-            if contents.chars().next_back().map_or(false, |ch| ch != '\n') {
+            if contents.chars().next_back().is_some_and(|ch| ch != '\n') {
                 contents.push('\n');
             }
             contents.push_str("// codesnip-guard: ");

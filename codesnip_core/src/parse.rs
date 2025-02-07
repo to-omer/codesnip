@@ -73,7 +73,7 @@ impl ExtractAst<'_> {
     }
 
     fn expand_file(&mut self, node: &mut ItemMod) -> Result<(), Error> {
-        let path = self.find_mod_file(&node)?;
+        let path = self.find_mod_file(node)?;
         let ast = parse_file_from_path(&path)?;
 
         node.attrs.extend(ast.attrs);
@@ -126,10 +126,10 @@ impl VisitMut for ExtractAst<'_> {
     fn visit_item_mut(&mut self, node: &mut Item) {
         let mut is_skip = false;
         if let Some(attrs) = node.get_attributes_mut() {
-            if !check_cfg(attrs, &self.cfg) {
+            if !check_cfg(attrs, self.cfg) {
                 is_skip = true;
             } else {
-                flatten_cfg_attr(attrs, &self.cfg);
+                flatten_cfg_attr(attrs, self.cfg);
             }
         }
         if is_skip {
@@ -270,6 +270,6 @@ fn test_parse() {
         .iter()
         .collect();
     if let Err(err) = parse_file_recursive(path, &[]) {
-        assert!(false, "{}", err);
+        panic!("{}", err);
     }
 }

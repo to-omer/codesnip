@@ -186,7 +186,7 @@ impl Parse for NoWhitespaceLitStr {
     }
 }
 
-#[allow(clippy::eval_order_dependence)]
+#[allow(clippy::mixed_read_write_in_expression)]
 impl EntryArgInclude {
     fn parse_after_token(include_token: Ident, input: ParseStream) -> syn::Result<Self> {
         let content;

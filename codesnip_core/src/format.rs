@@ -51,7 +51,7 @@ pub fn rustfmt_exits() -> bool {
 pub fn format_with_rustfmt(s: &str) -> Option<String> {
     let rustfmt = Path::new(env!("CARGO_HOME")).join("bin").join("rustfmt");
     let mut command = Command::new(rustfmt)
-        .args(&[
+        .args([
             "--quiet",
             "--config",
             "unstable_features=true,normalize_doc_attributes=true,newline_style=Unix",
