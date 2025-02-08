@@ -1,13 +1,13 @@
 pub mod mapping;
-pub mod parse;
+pub mod source;
 pub mod verify;
 
-pub use codesnip_attr::{entry, skip};
-
-use crate::{mapping::SnippetMapExt as _, parse::parse_files};
+use crate::mapping::SnippetMapExt as _;
 use anyhow::Context as _;
-use codesnip_core::{Error::FileNotFound, Filter, FormatOption, SnippetMap};
+pub use codesnip_attr::{entry, skip};
+use codesnip_core::{Error::FileNotFound, SnippetMap};
 use serde_json::to_string;
+use source::Sources;
 use std::{
     fs::File,
     io::{stdout, Read as _, Write as _},
@@ -17,7 +17,6 @@ use structopt::{
     clap::AppSettings::{DeriveDisplayOrder, InferSubcommands},
     StructOpt,
 };
-use syn::parse_str;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -32,34 +31,13 @@ pub enum Opt {
 #[derive(Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
 pub struct Config {
-    /// Target file paths.
-    #[structopt(short, long, value_name = "FILE", parse(from_os_str))]
-    pub target: Vec<PathBuf>,
-
     /// Use cached data.
     #[structopt(long, value_name = "FILE", parse(from_os_str))]
     pub use_cache: Vec<PathBuf>,
 
-    /// Configure the environment: e.g. --cfg=nightly
-    #[structopt(long, value_name = "SPEC", parse(try_from_str = parse_str::<syn::Meta>))]
-    pub cfg: Vec<syn::Meta>,
-
-    /// Filter items by attributes path: e.g. --filter-item=test
-    #[structopt(long, value_name = "PATH", parse(try_from_str = parse_str::<syn::Path>))]
-    pub filter_item: Vec<syn::Path>,
-
-    /// Filter attributes by attributes path: e.g. --filter-attr=path
-    #[structopt(long, value_name = "PATH", parse(try_from_str = parse_str::<syn::Path>))]
-    pub filter_attr: Vec<syn::Path>,
-
-    /// Format option one of [rustfmt|minify].
-    #[structopt(
-        long,
-        value_name("FORMAT"),
-        possible_values(&FormatOption::POSSIBLE_VALUES),
-        default_value("rustfmt")
-    )]
-    pub format: FormatOption,
+    /// Target config file path.
+    #[structopt(long, value_name = "FILE", parse(from_os_str))]
+    pub target_config: PathBuf,
 
     #[structopt(subcommand)]
     pub cmd: Command,
@@ -123,15 +101,9 @@ impl Opt {
 }
 
 impl Config {
-    fn filter(&self) -> Filter {
-        Filter::new(&self.filter_attr, &self.filter_item)
-    }
-
     pub fn execute(&self) -> anyhow::Result<()> {
-        let mut map = SnippetMap::new();
-        let items = parse_files(&self.target, &self.cfg)?;
-        map.collect_entries(&items, self.filter());
-        map.format_all(&self.format);
+        let target_config = Sources::load(&self.target_config)?;
+        let mut map = target_config.snippet_map()?;
 
         let mut buf = Vec::new();
         for cache in self.use_cache.iter() {

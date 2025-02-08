@@ -3,7 +3,10 @@ use crate::{
 };
 use quote::ToTokens as _;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    iter::FromIterator,
+};
 use syn::{
     parse::Parse as _,
     visit::{self, Visit},
@@ -129,6 +132,14 @@ impl Extend<(String, LinkedSnippet)> for SnippetMap {
         for (name, link) in iter {
             self.map.entry(name).or_default().append(link);
         }
+    }
+}
+
+impl FromIterator<(String, LinkedSnippet)> for SnippetMap {
+    fn from_iter<T: IntoIterator<Item = (String, LinkedSnippet)>>(iter: T) -> Self {
+        let mut map = Self::new();
+        map.extend(iter);
+        map
     }
 }
 

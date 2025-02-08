@@ -12,6 +12,12 @@ pub enum FormatOption {
     Minify,
 }
 
+impl Default for FormatOption {
+    fn default() -> Self {
+        Self::Rustfmt
+    }
+}
+
 impl FromStr for FormatOption {
     type Err = &'static str;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
