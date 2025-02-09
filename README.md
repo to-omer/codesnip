@@ -102,12 +102,8 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
-    -t, --target <FILE>...         Target file paths
-        --use-cache <FILE>...      Use cached data
-        --cfg <SPEC>...            Configure the environment: e.g. --cfg=nightly
-        --filter-item <PATH>...    Filter items by attributes path: e.g. --filter-item=test
-        --filter-attr <PATH>...    Filter attributes by attributes path: e.g. --filter-attr=path
-        --format <FORMAT>          Format option one of [rustfmt|minify] [default: rustfmt]
+        --use-cache <FILE>...     Use cached data
+        --source-config <FILE>    Source config file path
 
 SUBCOMMANDS:
     cache      Save analyzed data into file
@@ -116,6 +112,78 @@ SUBCOMMANDS:
     bundle     Bundle
     verify     Verify
     help       Prints this message or the help of the given subcommand(s)
+```
+
+## Source Config
+JSON schema for snippet source config.
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sources",
+  "type": "object",
+  "properties": {
+    "sources": {
+      "type": "array",
+      "items": {
+        "description": "Source config",
+        "type": "object",
+        "properties": {
+          "path": { "description": "Source path", "type": "string", "examples": ["src/lib.rs"] },
+          "prefix": { "description": "Prefix for snippet name", "type": "string" },
+          "git": {
+            "description": "Specify git repository",
+            "type": "object",
+            "properties": {
+              "url": { "description": "Git repository URL", "type": "string", "examples": ["https://github.com/owner/repo.git"] },
+              "branch": { "description": "Git repository branch", "type": "string", "examples": ["main"] },
+              "tag": { "description": "Git repository tag", "type": "string", "examples": ["v0.1.0"] },
+              "rev": { "description": "Git repository revision", "type": "string", "examples": ["abcdef"] }
+            },
+            "required": ["url"]
+          },
+          "cfg": {
+            "description": "Configure the environment",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "filter_attr": {
+            "description": "Filter attributes by attributes path",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "filter_item": {
+            "description": "Filter items by attributes path",
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["path"]
+      }
+    },
+    "cfg": {
+      "description": "Configure the environment (global)",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "filter_attr": {
+      "description": "Filter attributes by attributes path (global)",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "filter_item": {
+      "description": "Filter items by attributes path (global)",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "format": {
+      "description": "Format option",
+      "type": "string",
+      "enum": ["rustfmt", "minify"],
+      "default": "rustfmt"
+    }
+  },
+  "required": ["sources"]
+}
 ```
 
 ## VSCode Extension

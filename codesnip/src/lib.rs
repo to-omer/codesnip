@@ -35,9 +35,9 @@ pub struct Config {
     #[structopt(long, value_name = "FILE", parse(from_os_str))]
     pub use_cache: Vec<PathBuf>,
 
-    /// Target config file path.
+    /// Source config file path. see https://github.com/to-omer/codesnip#source-config
     #[structopt(long, value_name = "FILE", parse(from_os_str))]
-    pub target_config: PathBuf,
+    pub source_config: Option<PathBuf>,
 
     #[structopt(subcommand)]
     pub cmd: Command,
@@ -102,8 +102,12 @@ impl Opt {
 
 impl Config {
     pub fn execute(&self) -> anyhow::Result<()> {
-        let target_config = Sources::load(&self.target_config)?;
-        let mut map = target_config.snippet_map()?;
+        let mut map = if let Some(source_config) = &self.source_config {
+            let target_config = Sources::load(source_config)?;
+            target_config.snippet_map()?
+        } else {
+            SnippetMap::new()
+        };
 
         let mut buf = Vec::new();
         for cache in self.use_cache.iter() {
