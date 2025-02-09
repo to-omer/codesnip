@@ -109,7 +109,7 @@ jobs:
         shell: bash
 
       - name: Upload the artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: assets
           path: ${{ steps.asset.outputs.asset }}
@@ -122,7 +122,7 @@ jobs:
 
     steps:
       - name: Download the assets
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: assets
           path: ./assets
