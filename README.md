@@ -9,7 +9,7 @@ $ cargo install codesnip
 ## Dependencies
 ```toml
 [dependencies]
-codesnip = { version = "0.2.1", package = "codesnip_attr" }
+codesnip = { version = "0.4.0", package = "codesnip_attr" }
 ```
 
 ## Example
