@@ -187,7 +187,7 @@ impl Visit<'_> for CollectEntries<'_, '_, '_> {
         if let Some(attrs) = item.get_attributes() {
             for entry in attrs
                 .iter()
-                .filter(|attr| attr.path.is_codesnip_entry())
+                .filter(|attr| attr.path().is_codesnip_entry())
                 .filter_map(|attr| attr.parse_args_empty_with(EntryArgs::parse).ok())
                 .filter_map(|args| args.try_to_entry(item).ok())
             {
@@ -215,13 +215,14 @@ impl Visit<'_> for CollectEntries<'_, '_, '_> {
 impl Filter<'_, '_> {
     fn is_skip_item(self, attrs: &[Attribute]) -> bool {
         attrs.iter().any(|attr| {
-            attr.path.is_codesnip_skip() || self.filter_item.iter().any(|pat| pat == &attr.path)
+            attr.path().is_codesnip_skip() || self.filter_item.iter().any(|pat| pat == attr.path())
         })
     }
 
     fn filter_attributes(self, attrs: &mut Vec<Attribute>) {
         attrs.retain(|attr| {
-            !(attr.path.is_codesnip_entry() || self.filter_attr.iter().any(|pat| pat == &attr.path))
+            !(attr.path().is_codesnip_entry()
+                || self.filter_attr.iter().any(|pat| pat == attr.path()))
         })
     }
 

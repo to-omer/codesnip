@@ -4,8 +4,9 @@ use quote::{quote, ToTokens as _};
 use std::path::{Path, PathBuf};
 use syn::{
     parse2, parse_file,
+    punctuated::Punctuated,
     visit_mut::{self, VisitMut},
-    AttrStyle, Attribute, File, Item, ItemMod, Lit, Meta, MetaNameValue, NestedMeta,
+    AttrStyle, Attribute, Expr, ExprLit, File, Item, ItemMod, Lit, Meta, MetaNameValue, Token,
 };
 use Error::{FileNotFound, ModuleNotFound, ParseFile};
 
@@ -15,7 +16,7 @@ pub enum Error {
     IoError(#[from] std::io::Error),
     #[error("Failed to parse ")]
     ParseFile(PathBuf, #[source] syn::Error),
-    #[error("Module `{0}` not found where `{}`.", .1.display())]
+    #[error("Module `{name}` not found where `{path}`.", name = .0, path = .1.display())]
     ModuleNotFound(String, PathBuf),
     #[error("File `{}` not found.", .0.display())]
     FileNotFound(PathBuf, #[source] std::io::Error),
@@ -152,12 +153,15 @@ fn parse_file_from_path<P: AsRef<Path>>(path: P) -> Result<File, Error> {
 fn find_pathstr_from_attrs(attrs: &[Attribute]) -> Option<String> {
     attrs
         .iter()
-        .filter_map(|attr| attr.parse_meta().ok())
-        .filter(|meta| meta.path().is_ident("path"))
-        .find_map(|meta| match meta {
+        .filter(|attr| attr.path().is_ident("path"))
+        .find_map(|attr| match &attr.meta {
             Meta::NameValue(
                 MetaNameValue {
-                    lit: Lit::Str(litstr),
+                    value:
+                        Expr::Lit(ExprLit {
+                            lit: Lit::Str(litstr),
+                            ..
+                        }),
                     ..
                 },
                 ..,
@@ -170,13 +174,11 @@ fn check_cfg(attrs: &mut Vec<Attribute>, cfg: &[Meta]) -> bool {
     let mut next = Vec::new();
     let mut cond = true;
     for attr in attrs.drain(..) {
-        if let Ok(meta) = attr.parse_meta() {
-            if meta.path().is_ident("cfg") {
-                if let Meta::List(list) = meta {
-                    if let Some(NestedMeta::Meta(pred)) = list.nested.first() {
-                        cond &= cfg_condition(pred, cfg);
-                        continue;
-                    }
+        if attr.path().is_ident("cfg") {
+            if let Meta::List(list) = &attr.meta {
+                if let Ok(pred) = list.parse_args() {
+                    cond &= cfg_condition(&pred, cfg);
+                    continue;
                 }
             }
         }
@@ -189,11 +191,13 @@ fn check_cfg(attrs: &mut Vec<Attribute>, cfg: &[Meta]) -> bool {
 fn flatten_cfg_attr(attrs: &mut Vec<Attribute>, cfg: &[Meta]) {
     let mut next = Vec::new();
     for attr in attrs.drain(..) {
-        if let Ok(meta) = attr.parse_meta() {
-            if meta.path().is_ident("cfg_attr") {
-                if let Meta::List(list) = meta {
-                    let mut it = list.nested.iter();
-                    if let Some(NestedMeta::Meta(pred)) = it.next() {
+        if attr.path().is_ident("cfg_attr") {
+            if let Meta::List(list) = &attr.meta {
+                if let Ok(preds) =
+                    list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+                {
+                    let mut it = preds.iter();
+                    if let Some(pred) = it.next() {
                         if cfg_condition(pred, cfg) {
                             next.extend(it.map(to_attribute));
                             continue;
@@ -207,7 +211,7 @@ fn flatten_cfg_attr(attrs: &mut Vec<Attribute>, cfg: &[Meta]) {
     *attrs = next;
 }
 
-fn to_attribute(meta: &NestedMeta) -> Attribute {
+fn to_attribute(meta: &Meta) -> Attribute {
     let meta = meta.to_token_stream();
     let attr: Attribute = syn::parse_quote!(#[ #meta ]);
     attr
@@ -216,9 +220,7 @@ fn to_attribute(meta: &NestedMeta) -> Attribute {
 #[test]
 fn test_to_attribute() {
     let attr: Attribute = syn::parse_quote!(#[codesnip::entry("name", inline)]);
-    let attr = to_attribute(&NestedMeta::Meta(attr.parse_meta().unwrap()))
-        .to_token_stream()
-        .to_string();
+    let attr = to_attribute(&attr.meta).to_token_stream().to_string();
     assert_eq!(
         attr.as_str(),
         r##"# [codesnip :: entry ("name" , inline)]"##
@@ -230,31 +232,30 @@ fn cfg_condition(pred: &Meta, cfg: &[Meta]) -> bool {
         match id.to_string().as_str() {
             "all" => {
                 if let Meta::List(list) = pred {
-                    return list.nested.iter().all(|nm| {
-                        if let NestedMeta::Meta(pred) = nm {
-                            cfg_condition(pred, cfg)
-                        } else {
-                            true
-                        }
-                    });
+                    return match list
+                        .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+                    {
+                        Ok(preds) => preds.iter().all(|pred| cfg_condition(pred, cfg)),
+                        Err(_) => false,
+                    };
                 }
             }
             "any" => {
                 if let Meta::List(list) = pred {
-                    return list.nested.iter().any(|nm| {
-                        if let NestedMeta::Meta(pred) = nm {
-                            cfg_condition(pred, cfg)
-                        } else {
-                            false
-                        }
-                    });
+                    return match list
+                        .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+                    {
+                        Ok(preds) => preds.iter().any(|pred| cfg_condition(pred, cfg)),
+                        Err(_) => false,
+                    };
                 }
             }
             "not" => {
                 if let Meta::List(list) = pred {
-                    if let Some(NestedMeta::Meta(pred)) = list.nested.first() {
-                        return !cfg_condition(pred, cfg);
-                    }
+                    return match list.parse_args() {
+                        Ok(pred) => !cfg_condition(&pred, cfg),
+                        Err(_) => false,
+                    };
                 }
             }
             _ => return cfg.iter().any(|spec| spec == pred),

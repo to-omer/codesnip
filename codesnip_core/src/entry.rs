@@ -5,8 +5,8 @@ use syn::{
     parenthesized,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
-    token::{self, Comma, Paren},
-    Error, Ident, Item, LitStr,
+    token::{self, Paren},
+    Error, Ident, Item, LitStr, Token,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -18,7 +18,7 @@ pub struct Entry {
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct EntryArgs {
-    pub args: Punctuated<EntryArg, Comma>,
+    pub args: Punctuated<EntryArg, Token![,]>,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
@@ -39,7 +39,7 @@ pub struct EntryArgName {
 pub struct EntryArgInclude {
     pub include_token: Ident,
     pub paren_token: Paren,
-    pub includes: Punctuated<NoWhitespaceLitStr, Comma>,
+    pub includes: Punctuated<NoWhitespaceLitStr, Token![,]>,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
@@ -128,7 +128,7 @@ impl EntryArgs {
 impl Parse for EntryArgs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         Ok(Self {
-            args: input.parse_terminated(EntryArg::parse)?,
+            args: input.parse_terminated(EntryArg::parse, Token![,])?,
         })
     }
 }

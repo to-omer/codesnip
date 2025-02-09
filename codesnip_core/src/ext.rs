@@ -1,4 +1,5 @@
-use syn::{parse::Parser, parse_str, Attribute, Item, Path};
+use proc_macro2::TokenStream;
+use syn::{parse::Parser, parse_str, Attribute, Item, Meta, Path};
 
 pub trait AttributeExt {
     fn parse_args_empty_with<F: Parser>(&self, parser: F) -> syn::Result<F::Output>;
@@ -18,10 +19,10 @@ pub trait PathExt {
 
 impl AttributeExt for Attribute {
     fn parse_args_empty_with<F: Parser>(&self, parser: F) -> syn::Result<F::Output> {
-        if self.tokens.is_empty() {
-            parser.parse2(self.tokens.clone())
-        } else {
-            self.parse_args_with(parser)
+        match &self.meta {
+            Meta::Path(_) => parser.parse2(TokenStream::new()),
+            Meta::List(_) => self.parse_args_with(parser),
+            Meta::NameValue(_) => self.parse_args_with(parser),
         }
     }
 }
@@ -36,7 +37,6 @@ impl ItemExt for Item {
             Item::ForeignMod(it) => &it.attrs,
             Item::Impl(it) => &it.attrs,
             Item::Macro(it) => &it.attrs,
-            Item::Macro2(it) => &it.attrs,
             Item::Mod(it) => &it.attrs,
             Item::Static(it) => &it.attrs,
             Item::Struct(it) => &it.attrs,
@@ -58,7 +58,6 @@ impl ItemExt for Item {
             Item::ForeignMod(it) => &mut it.attrs,
             Item::Impl(it) => &mut it.attrs,
             Item::Macro(it) => &mut it.attrs,
-            Item::Macro2(it) => &mut it.attrs,
             Item::Mod(it) => &mut it.attrs,
             Item::Static(it) => &mut it.attrs,
             Item::Struct(it) => &mut it.attrs,
@@ -81,7 +80,6 @@ impl ItemExt for Item {
                 // Item::ForeignMod(it) => &it,
                 // Item::Impl(it) => &it,
                 Item::Macro(it) => return it.ident.as_ref().map(|id| id.to_string()),
-                Item::Macro2(it) => &it.ident,
                 Item::Mod(it) => &it.ident,
                 Item::Static(it) => &it.ident,
                 Item::Struct(it) => &it.ident,
