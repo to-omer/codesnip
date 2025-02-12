@@ -93,9 +93,23 @@ where
 
 impl Sources {
     pub fn load<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let file = std::fs::File::open(path)?;
-        let reader = std::io::BufReader::new(file);
-        let sources: Self = serde_json::from_reader(reader)?;
+        enum SerializeType {
+            Json,
+            Toml,
+        }
+        let ty = match path.as_ref().extension() {
+            Some(ext) if ext == "json" => SerializeType::Json,
+            Some(ext) if ext == "toml" => SerializeType::Toml,
+            _ => return Err(anyhow::anyhow!("Invalid file extension")),
+        };
+        let sources: Self = match ty {
+            SerializeType::Json => {
+                let file = std::fs::File::open(path)?;
+                let reader = std::io::BufReader::new(file);
+                serde_json::from_reader(reader)?
+            }
+            SerializeType::Toml => toml::from_str(&std::fs::read_to_string(path)?)?,
+        };
         Ok(sources)
     }
     pub fn snippet_map(&self) -> anyhow::Result<SnippetMap> {

@@ -1,6 +1,6 @@
 [package]
 name = "codesnip"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["to-omer <toomerhs@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -34,3 +34,4 @@ serde_with = "3.12.0"
 structopt = "0.3.26"
 syn = { version = "2.0.98", features = ["full"] }
 tempfile = "3.3.0"
+toml = "0.8.20"
