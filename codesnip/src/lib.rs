@@ -10,12 +10,12 @@ use serde_json::to_string;
 use source::Sources;
 use std::{
     fs::File,
-    io::{stdout, Read as _, Write as _},
+    io::{Read as _, Write as _, stdout},
     path::{Path, PathBuf},
 };
 use structopt::{
-    clap::AppSettings::{DeriveDisplayOrder, InferSubcommands},
     StructOpt,
+    clap::AppSettings::{DeriveDisplayOrder, InferSubcommands},
 };
 
 #[derive(Debug, StructOpt)]
@@ -114,7 +114,8 @@ impl Config {
             buf.clear();
             let mut file = File::open(cache).map_err(|err| FileNotFound(cache.clone(), err))?;
             file.read_to_end(&mut buf)?;
-            let mapt: SnippetMap = bincode::deserialize(&buf)?;
+            let (mapt, _): (SnippetMap, _) =
+                bincode::serde::decode_from_slice(&buf, bincode::config::standard())?;
             map.extend(mapt);
         }
 
@@ -126,7 +127,10 @@ impl Command {
     pub fn execute(&self, map: SnippetMap) -> anyhow::Result<()> {
         match self {
             Self::Cache { output } => {
-                create_recursive(output)?.write_all(&bincode::serialize(&map)?)?;
+                create_recursive(output)?.write_all(&bincode::serde::encode_to_vec(
+                    &map,
+                    bincode::config::standard(),
+                )?)?;
             }
             Self::List { not_hide } => {
                 let list = map.keys(!not_hide).join(" ");
