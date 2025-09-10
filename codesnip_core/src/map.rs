@@ -1,5 +1,5 @@
 use crate::{
-    entry::EntryArgs, format::FormatOption, AttributeExt as _, ItemExt as _, PathExt as _,
+    AttributeExt as _, ItemExt as _, PathExt as _, entry::EntryArgs, format::FormatOption,
 };
 use quote::ToTokens as _;
 use serde::{Deserialize, Serialize};
@@ -8,9 +8,9 @@ use std::{
     iter::FromIterator,
 };
 use syn::{
+    Attribute, Item, ItemMod, Path,
     parse::Parse as _,
     visit::{self, Visit},
-    Attribute, Item, ItemMod, Path,
 };
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -195,11 +195,11 @@ impl Visit<'_> for CollectEntries<'_, '_, '_> {
                 let filter = self.filter;
                 match (entry.inline, item) {
                     (true, Item::Mod(ItemMod { attrs, content, .. })) => {
-                        if !filter.is_skip_item(attrs) {
-                            if let Some((_, items)) = content {
-                                for item in items {
-                                    link.push_item_with_filter(item, filter);
-                                }
+                        if !filter.is_skip_item(attrs)
+                            && let Some((_, items)) = content
+                        {
+                            for item in items {
+                                link.push_item_with_filter(item, filter);
                             }
                         }
                     }
@@ -227,10 +227,10 @@ impl Filter<'_, '_> {
     }
 
     fn modify_item(self, mut item: Item) -> Option<Item> {
-        if let Some(attrs) = item.get_attributes() {
-            if self.is_skip_item(attrs) {
-                return None;
-            }
+        if let Some(attrs) = item.get_attributes()
+            && self.is_skip_item(attrs)
+        {
+            return None;
         }
 
         if let Some(attrs) = item.get_attributes_mut() {

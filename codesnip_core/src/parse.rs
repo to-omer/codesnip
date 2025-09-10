@@ -1,14 +1,14 @@
 use crate::ItemExt as _;
+use Error::{FileNotFound, ModuleNotFound, ParseFile};
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens as _};
+use quote::{ToTokens as _, quote};
 use std::path::{Path, PathBuf};
 use syn::{
-    parse2, parse_file,
+    AttrStyle, Attribute, Expr, ExprLit, File, Item, ItemMod, Lit, Meta, MetaNameValue, Token,
+    parse_file, parse2,
     punctuated::Punctuated,
     visit_mut::{self, VisitMut},
-    AttrStyle, Attribute, Expr, ExprLit, File, Item, ItemMod, Lit, Meta, MetaNameValue, Token,
 };
-use Error::{FileNotFound, ModuleNotFound, ParseFile};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -174,13 +174,12 @@ fn check_cfg(attrs: &mut Vec<Attribute>, cfg: &[Meta]) -> bool {
     let mut next = Vec::new();
     let mut cond = true;
     for attr in attrs.drain(..) {
-        if attr.path().is_ident("cfg") {
-            if let Meta::List(list) = &attr.meta {
-                if let Ok(pred) = list.parse_args() {
-                    cond &= cfg_condition(&pred, cfg);
-                    continue;
-                }
-            }
+        if attr.path().is_ident("cfg")
+            && let Meta::List(list) = &attr.meta
+            && let Ok(pred) = list.parse_args()
+        {
+            cond &= cfg_condition(&pred, cfg);
+            continue;
         }
         next.push(attr);
     }
@@ -191,19 +190,16 @@ fn check_cfg(attrs: &mut Vec<Attribute>, cfg: &[Meta]) -> bool {
 fn flatten_cfg_attr(attrs: &mut Vec<Attribute>, cfg: &[Meta]) {
     let mut next = Vec::new();
     for attr in attrs.drain(..) {
-        if attr.path().is_ident("cfg_attr") {
-            if let Meta::List(list) = &attr.meta {
-                if let Ok(preds) =
-                    list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
-                {
-                    let mut it = preds.iter();
-                    if let Some(pred) = it.next() {
-                        if cfg_condition(pred, cfg) {
-                            next.extend(it.map(to_attribute));
-                            continue;
-                        }
-                    }
-                }
+        if attr.path().is_ident("cfg_attr")
+            && let Meta::List(list) = &attr.meta
+            && let Ok(preds) = list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+        {
+            let mut it = preds.iter();
+            if let Some(pred) = it.next()
+                && cfg_condition(pred, cfg)
+            {
+                next.extend(it.map(to_attribute));
+                continue;
             }
         }
         next.push(attr);
