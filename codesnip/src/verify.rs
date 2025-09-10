@@ -6,7 +6,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use std::{fs::File, io::Write as _, sync::atomic::AtomicBool};
 use std::{
-    iter::repeat,
+    iter::repeat_n,
     process::{Command, Stdio},
 };
 use tempfile::tempdir;
@@ -68,7 +68,7 @@ pub fn execute(
                         "{:>12} {:.<45}.{:.>8} Byte",
                         style("Verified").green().bright(),
                         name,
-                        contents.bytes().len()
+                        contents.len()
                     );
                 }
                 if verbose {
@@ -170,7 +170,7 @@ fn format_error_message(name: &str, message: Diagnostic) -> Option<String> {
                 style(" | ").cyan().bright(),
                 k = k + 3,
             ));
-            s.extend(repeat(' ').take(text.highlight_start - 1));
+            s.extend(repeat_n(' ', text.highlight_start - 1));
             s.push_str(
                 &style("^".repeat(text.highlight_end - text.highlight_start))
                     .fg(color)
