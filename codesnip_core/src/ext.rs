@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use syn::{parse::Parser, parse_str, Attribute, Item, Meta, Path};
+use syn::{Attribute, Item, Meta, Path, parse::Parser, parse_str};
 
 pub trait AttributeExt {
     fn parse_args_empty_with<F: Parser>(&self, parser: F) -> syn::Result<F::Output>;
@@ -116,16 +116,22 @@ impl PathExt for Path {
 
 #[test]
 fn test_is_codesnip() {
-    assert!(&parse_str::<Path>("codesnip::entry")
-        .unwrap()
-        .is_codesnip_entry());
+    assert!(
+        &parse_str::<Path>("codesnip::entry")
+            .unwrap()
+            .is_codesnip_entry()
+    );
     assert!(!&parse_str::<Path>("entry").unwrap().is_codesnip_entry());
-    assert!(!&parse_str::<Path>("::codesnip::entry")
-        .unwrap()
-        .is_codesnip_entry());
+    assert!(
+        !&parse_str::<Path>("::codesnip::entry")
+            .unwrap()
+            .is_codesnip_entry()
+    );
     assert!(!&parse_str::<Path>("codesnip").unwrap().is_codesnip_entry());
     assert!(!&parse_str::<Path>("::entry").unwrap().is_codesnip_entry());
-    assert!(!&parse_str::<Path>("rustfmt::entry")
-        .unwrap()
-        .is_codesnip_entry());
+    assert!(
+        !&parse_str::<Path>("rustfmt::entry")
+            .unwrap()
+            .is_codesnip_entry()
+    );
 }

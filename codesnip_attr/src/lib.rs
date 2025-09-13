@@ -5,7 +5,7 @@ mod entry_checked {
     use super::*;
     use codesnip_core::entry::EntryArgs;
     use quote::ToTokens;
-    use syn::{parse, parse_macro_input, Error, Item};
+    use syn::{Error, Item, parse, parse_macro_input};
 
     pub(crate) fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
         let attr = parse_macro_input!(attr as EntryArgs);

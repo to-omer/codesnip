@@ -1,12 +1,12 @@
 use crate::ext::ItemExt as _;
 use quote::ToTokens;
 use syn::{
+    Error, Ident, Item, LitStr, Token,
     ext::IdentExt,
     parenthesized,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     token::{self, Paren},
-    Error, Ident, Item, LitStr, Token,
 };
 
 #[derive(Debug, Clone, Default)]

@@ -1,15 +1,15 @@
 use crate::mapping::SnippetMapExt as _;
-use codesnip_core::{parse_file_recursive, Filter, FormatOption, SnippetMap};
+use codesnip_core::{Filter, FormatOption, SnippetMap, parse_file_recursive};
 use git2::build::RepoBuilder;
 use serde::{Deserialize, Deserializer};
-use serde_with::{serde_as, DeserializeAs, DisplayFromStr};
+use serde_with::{DeserializeAs, DisplayFromStr, serde_as};
 use std::{
     fmt,
     marker::PhantomData,
     path::{Path, PathBuf},
 };
 use syn::parse_str;
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 
 #[serde_as]
 #[derive(Debug, Deserialize)]

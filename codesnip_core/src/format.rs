@@ -1,4 +1,4 @@
-use rust_minify::{minify_opt, MinifyOption};
+use rust_minify::{MinifyOption, minify_opt};
 use std::{
     io::Write as _,
     path::Path,

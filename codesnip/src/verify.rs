@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use cargo_metadata::diagnostic::{Diagnostic, DiagnosticLevel};
 use codesnip_core::SnippetMap;
-use console::{colors_enabled_stderr, strip_ansi_codes, style, Color};
+use console::{Color, colors_enabled_stderr, strip_ansi_codes, style};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use std::{fs::File, io::Write as _, sync::atomic::AtomicBool};
