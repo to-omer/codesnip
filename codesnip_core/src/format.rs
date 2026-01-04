@@ -6,16 +6,11 @@ use std::{
     str::FromStr,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum FormatOption {
+    #[default]
     Rustfmt,
     Minify,
-}
-
-impl Default for FormatOption {
-    fn default() -> Self {
-        Self::Rustfmt
-    }
 }
 
 impl FromStr for FormatOption {
