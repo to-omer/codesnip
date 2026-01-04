@@ -17,7 +17,11 @@ pub struct Sources {
     pub sources: Vec<Source>,
     #[serde(default)]
     #[serde_as(as = "Option<Vec<SynParse>>")]
-    pub cfg: Option<Vec<syn::Meta>>,
+    #[serde(alias = "cfg")]
+    pub cfg_enable: Option<Vec<syn::Meta>>,
+    #[serde(default)]
+    #[serde_as(as = "Option<Vec<SynParse>>")]
+    pub cfg_disable: Option<Vec<syn::Meta>>,
     #[serde(default)]
     #[serde_as(as = "Option<Vec<SynParse>>")]
     pub filter_attr: Option<Vec<syn::Path>>,
@@ -36,7 +40,10 @@ pub struct Source {
     pub prefix: Option<String>,
     pub git: Option<GitHubSource>,
     #[serde_as(as = "Option<Vec<SynParse>>")]
-    pub cfg: Option<Vec<syn::Meta>>,
+    #[serde(alias = "cfg")]
+    pub cfg_enable: Option<Vec<syn::Meta>>,
+    #[serde_as(as = "Option<Vec<SynParse>>")]
+    pub cfg_disable: Option<Vec<syn::Meta>>,
     #[serde_as(as = "Option<Vec<SynParse>>")]
     pub filter_attr: Option<Vec<syn::Path>>,
     #[serde_as(as = "Option<Vec<SynParse>>")]
@@ -134,9 +141,19 @@ impl Source {
 
         let mut map = SnippetMap::new();
         let mut items = Vec::new();
-        let cfg = vec![];
-        let cfg = self.cfg.as_ref().or(sources.cfg.as_ref()).unwrap_or(&cfg);
-        items.append(&mut parse_file_recursive(path, cfg)?.items);
+        let cfg_enable_default = Vec::new();
+        let cfg_disable_default = Vec::new();
+        let cfg_enable = self
+            .cfg_enable
+            .as_ref()
+            .or(sources.cfg_enable.as_ref())
+            .unwrap_or(&cfg_enable_default);
+        let cfg_disable = self
+            .cfg_disable
+            .as_ref()
+            .or(sources.cfg_disable.as_ref())
+            .unwrap_or(&cfg_disable_default);
+        items.append(&mut parse_file_recursive(path, cfg_enable, cfg_disable)?.items);
         drop(guard);
 
         let filter = vec![];

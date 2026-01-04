@@ -141,8 +141,13 @@ JSON schema for snippet source config.
             },
             "required": ["url"]
           },
-          "cfg": {
-            "description": "Configure the environment",
+          "cfg_enable": {
+            "description": "Configure the environment (enable)",
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "cfg_disable": {
+            "description": "Configure the environment (disable)",
             "type": "array",
             "items": { "type": "string" }
           },
@@ -160,8 +165,13 @@ JSON schema for snippet source config.
         "required": ["path"]
       }
     },
-    "cfg": {
-      "description": "Configure the environment (global)",
+    "cfg_enable": {
+      "description": "Configure the environment (global, enable)",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "cfg_disable": {
+      "description": "Configure the environment (global, disable)",
       "type": "array",
       "items": { "type": "string" }
     },

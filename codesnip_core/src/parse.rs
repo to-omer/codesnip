@@ -22,7 +22,11 @@ pub enum Error {
     FileNotFound(PathBuf, #[source] std::io::Error),
 }
 
-pub fn parse_file_recursive(path: PathBuf, cfg: &[Meta]) -> Result<File, Error> {
+pub fn parse_file_recursive(
+    path: PathBuf,
+    cfg_enable: &[Meta],
+    cfg_disable: &[Meta],
+) -> Result<File, Error> {
     let mut mod_dir = path.clone();
     mod_dir.pop();
     let cwd = mod_dir.clone();
@@ -30,7 +34,8 @@ pub fn parse_file_recursive(path: PathBuf, cfg: &[Meta]) -> Result<File, Error> 
         mod_dir,
         cwd,
         error: None,
-        cfg,
+        cfg_enable,
+        cfg_disable,
     };
     let mut ast = parse_file_from_path(&path)?;
     ext.visit_file_mut(&mut ast);
@@ -45,7 +50,8 @@ struct ExtractAst<'c> {
     mod_dir: PathBuf,
     cwd: PathBuf,
     error: Option<Error>,
-    cfg: &'c [Meta],
+    cfg_enable: &'c [Meta],
+    cfg_disable: &'c [Meta],
 }
 
 impl ExtractAst<'_> {
@@ -127,10 +133,10 @@ impl VisitMut for ExtractAst<'_> {
     fn visit_item_mut(&mut self, node: &mut Item) {
         let mut is_skip = false;
         if let Some(attrs) = node.get_attributes_mut() {
-            if !check_cfg(attrs, self.cfg) {
+            if !check_cfg(attrs, self.cfg_enable, self.cfg_disable) {
                 is_skip = true;
             } else {
-                flatten_cfg_attr(attrs, self.cfg);
+                flatten_cfg_attr(attrs, self.cfg_enable, self.cfg_disable);
             }
         }
         if is_skip {
@@ -170,7 +176,7 @@ fn find_pathstr_from_attrs(attrs: &[Attribute]) -> Option<String> {
         })
 }
 
-fn check_cfg(attrs: &mut Vec<Attribute>, cfg: &[Meta]) -> bool {
+fn check_cfg(attrs: &mut Vec<Attribute>, cfg_enable: &[Meta], cfg_disable: &[Meta]) -> bool {
     let mut next = Vec::new();
     let mut cond = true;
     for attr in attrs.drain(..) {
@@ -178,7 +184,11 @@ fn check_cfg(attrs: &mut Vec<Attribute>, cfg: &[Meta]) -> bool {
             && let Meta::List(list) = &attr.meta
             && let Ok(pred) = list.parse_args()
         {
-            cond &= cfg_condition(&pred, cfg);
+            match cfg_condition(&pred, cfg_enable, cfg_disable) {
+                Some(true) => {}
+                Some(false) => cond = false,
+                None => next.push(attr),
+            }
             continue;
         }
         next.push(attr);
@@ -187,7 +197,7 @@ fn check_cfg(attrs: &mut Vec<Attribute>, cfg: &[Meta]) -> bool {
     cond
 }
 
-fn flatten_cfg_attr(attrs: &mut Vec<Attribute>, cfg: &[Meta]) {
+fn flatten_cfg_attr(attrs: &mut Vec<Attribute>, cfg_enable: &[Meta], cfg_disable: &[Meta]) {
     let mut next = Vec::new();
     for attr in attrs.drain(..) {
         if attr.path().is_ident("cfg_attr")
@@ -195,11 +205,15 @@ fn flatten_cfg_attr(attrs: &mut Vec<Attribute>, cfg: &[Meta]) {
             && let Ok(preds) = list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
         {
             let mut it = preds.iter();
-            if let Some(pred) = it.next()
-                && cfg_condition(pred, cfg)
-            {
-                next.extend(it.map(to_attribute));
-                continue;
+            if let Some(pred) = it.next() {
+                match cfg_condition(pred, cfg_enable, cfg_disable) {
+                    Some(true) => {
+                        next.extend(it.map(to_attribute));
+                        continue;
+                    }
+                    Some(false) => continue,
+                    None => {}
+                }
             }
         }
         next.push(attr);
@@ -223,42 +237,74 @@ fn test_to_attribute() {
     );
 }
 
-fn cfg_condition(pred: &Meta, cfg: &[Meta]) -> bool {
+#[test]
+fn test_cfg_condition_enable_disable() {
+    let enable = vec![syn::parse_str::<Meta>("feature = \"foo\"").unwrap()];
+    let disable = vec![syn::parse_str::<Meta>("feature = \"bar\"").unwrap()];
+
+    let pred_enable = syn::parse_str::<Meta>("feature = \"foo\"").unwrap();
+    let pred_disable = syn::parse_str::<Meta>("feature = \"bar\"").unwrap();
+    let pred_unknown = syn::parse_str::<Meta>("target_arch = \"x86_64\"").unwrap();
+    let pred_any =
+        syn::parse_str::<Meta>("any(feature = \"foo\", target_arch = \"x86_64\")").unwrap();
+
+    assert_eq!(cfg_condition(&pred_enable, &enable, &disable), Some(true));
+    assert_eq!(cfg_condition(&pred_disable, &enable, &disable), Some(false));
+    assert_eq!(cfg_condition(&pred_unknown, &enable, &disable), None);
+    assert_eq!(cfg_condition(&pred_any, &enable, &disable), None);
+}
+
+fn cfg_condition(pred: &Meta, cfg_enable: &[Meta], cfg_disable: &[Meta]) -> Option<bool> {
     if let Some(id) = pred.path().get_ident() {
         match id.to_string().as_str() {
             "all" => {
                 if let Meta::List(list) = pred {
-                    return match list
+                    let preds = list
                         .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
-                    {
-                        Ok(preds) => preds.iter().all(|pred| cfg_condition(pred, cfg)),
-                        Err(_) => false,
-                    };
+                        .ok()?;
+                    let mut result = true;
+                    for pred in preds.iter() {
+                        match cfg_condition(pred, cfg_enable, cfg_disable) {
+                            Some(true) => {}
+                            Some(false) => result = false,
+                            None => return None,
+                        }
+                    }
+                    return Some(result);
                 }
             }
             "any" => {
                 if let Meta::List(list) = pred {
-                    return match list
+                    let preds = list
                         .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
-                    {
-                        Ok(preds) => preds.iter().any(|pred| cfg_condition(pred, cfg)),
-                        Err(_) => false,
-                    };
+                        .ok()?;
+                    let mut result = false;
+                    for pred in preds.iter() {
+                        match cfg_condition(pred, cfg_enable, cfg_disable) {
+                            Some(true) => result = true,
+                            Some(false) => {}
+                            None => return None,
+                        }
+                    }
+                    return Some(result);
                 }
             }
             "not" => {
                 if let Meta::List(list) = pred {
-                    return match list.parse_args() {
-                        Ok(pred) => !cfg_condition(&pred, cfg),
-                        Err(_) => false,
-                    };
+                    let pred = list.parse_args().ok()?;
+                    return cfg_condition(&pred, cfg_enable, cfg_disable).map(|pred| !pred);
                 }
             }
-            _ => return cfg.iter().any(|spec| spec == pred),
+            _ => {}
         }
     }
-    // If there is a parsing error, it may be skipped and succeeded.
-    true
+    if cfg_disable.iter().any(|spec| spec == pred) {
+        Some(false)
+    } else if cfg_enable.iter().any(|spec| spec == pred) {
+        Some(true)
+    } else {
+        None
+    }
 }
 
 #[test]
@@ -266,7 +312,7 @@ fn test_parse() {
     let path: PathBuf = [env!("CARGO_MANIFEST_DIR"), "examples", "mod_path", "lib.rs"]
         .iter()
         .collect();
-    if let Err(err) = parse_file_recursive(path, &[]) {
+    if let Err(err) = parse_file_recursive(path, &[], &[]) {
         panic!("{}", err);
     }
 }
