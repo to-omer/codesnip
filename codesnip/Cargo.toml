@@ -1,6 +1,6 @@
 [package]
 name = "codesnip"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["to-omer <toomerhs@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -21,8 +21,8 @@ crate-type = ["lib"]
 anyhow = "1.0.99"
 bincode = { version = "2.0.1", features = ["alloc", "serde"] }
 cargo_metadata = "0.22.0"
-codesnip_attr = { version = "0.4.0", path = "../codesnip_attr" }
-codesnip_core = { version = "0.4.0", path = "../codesnip_core" }
+codesnip_attr = { version = "0.5.0", path = "../codesnip_attr" }
+codesnip_core = { version = "0.5.0", path = "../codesnip_core" }
 console = "0.16.1"
 git2 = "0.20.2"
 indicatif = "0.18.0"
