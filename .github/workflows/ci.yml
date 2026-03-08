@@ -34,9 +34,9 @@ jobs:
           - stable-aarch64-apple-darwin
           - stable-x86_64-unknown-linux-gnu
         include:
-          - { toolchain: stable-x86_64-pc-windows-msvc   , os: windows-latest }
-          - { toolchain: stable-aarch64-apple-darwin     , os: macos-latest  }
-          - { toolchain: stable-x86_64-unknown-linux-gnu , os: ubuntu-latest }
+          - { toolchain: stable-x86_64-pc-windows-msvc   , target: x86_64-pc-windows-msvc  , os: windows-latest }
+          - { toolchain: stable-aarch64-apple-darwin     , target: aarch64-apple-darwin    , os: macos-latest  }
+          - { toolchain: stable-x86_64-unknown-linux-gnu , target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
 
     name: Build (${{ matrix.toolchain }})
     runs-on: ${{ matrix.os }}
@@ -71,9 +71,9 @@ jobs:
           - stable-aarch64-apple-darwin
           - stable-x86_64-unknown-linux-gnu
         include:
-          - { toolchain: stable-x86_64-pc-windows-msvc  , os: windows-latest, exe-suffix: .exe }
-          - { toolchain: stable-aarch64-apple-darwin    , os: macos-latest  , exe-suffix: '' }
-          - { toolchain: stable-x86_64-unknown-linux-gnu, os: ubuntu-latest , exe-suffix: '' }
+          - { toolchain: stable-x86_64-pc-windows-msvc  , target: x86_64-pc-windows-msvc  , os: windows-latest, exe-suffix: .exe, archive-suffix: .zip }
+          - { toolchain: stable-aarch64-apple-darwin    , target: aarch64-apple-darwin    , os: macos-latest  , exe-suffix: ''   , archive-suffix: .tgz }
+          - { toolchain: stable-x86_64-unknown-linux-gnu, target: x86_64-unknown-linux-gnu, os: ubuntu-latest , exe-suffix: ''   , archive-suffix: .tgz }
 
     name: Upload (${{ matrix.toolchain }})
     runs-on: ${{ matrix.os }}
@@ -94,15 +94,16 @@ jobs:
       - name: Create an asset
         id: asset
         run: |
+          PKG_NAME=codesnip
           BIN_TARGET=cargo-codesnip
-          ASSET_STEM="$BIN_TARGET-${GITHUB_REF#refs/tags/}-${{ matrix.toolchain }}"
+          ASSET_STEM="$PKG_NAME-${{ matrix.target }}-${GITHUB_REF#refs/tags/}"
           mkdir "$ASSET_STEM"
           mv "$HOME/.cargo/bin/$BIN_TARGET${{ matrix.exe-suffix }}" "./$ASSET_STEM/"
           if ${{ contains(matrix.toolchain, 'pc-windows') }}; then
-            ASSET="$ASSET_STEM.zip"
+            ASSET="$ASSET_STEM${{ matrix.archive-suffix }}"
             7z a "$ASSET" "./$ASSET_STEM"
           else
-            ASSET="$ASSET_STEM.tar.gz"
+            ASSET="$ASSET_STEM${{ matrix.archive-suffix }}"
             tar -czvf "./$ASSET" "./$ASSET_STEM"
           fi
           echo "asset=$ASSET" >> $GITHUB_OUTPUT
