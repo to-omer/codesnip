@@ -15,6 +15,7 @@ pub fn execute(
     map: SnippetMap,
     toolchain: &str,
     edition: &str,
+    target: Option<&str>,
     verbose: bool,
 ) -> anyhow::Result<()> {
     let ok = AtomicBool::new(true);
@@ -58,7 +59,7 @@ pub fn execute(
             }
         }
         let contents = map.bundle(name, link, Default::default(), false);
-        match check(name, &contents, toolchain, edition) {
+        match check(name, &contents, toolchain, edition, target) {
             Ok((success, messages)) => {
                 if !success {
                     ok.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -104,6 +105,7 @@ fn check(
     contents: &str,
     toolchain: &str,
     edition: &str,
+    target: Option<&str>,
 ) -> anyhow::Result<(bool, Vec<Diagnostic>)> {
     let dir = tempdir()?;
     let lib = dir.path().join(name);
@@ -113,15 +115,19 @@ fn check(
     }
     let mut out_dir: std::ffi::OsString = "--out-dir=".to_owned().into();
     out_dir.push(dir.path().as_os_str());
-    let output = Command::new("rustc")
-        .args([
-            format!("+{}", toolchain).as_ref(),
-            lib.as_os_str(),
-            format!("--edition={}", edition).as_ref(),
-            "--crate-type=lib".as_ref(),
-            "--error-format=json".as_ref(),
-            out_dir.as_ref(),
-        ])
+    let mut command = Command::new("rustc");
+    command.args([
+        format!("+{}", toolchain).as_ref(),
+        lib.as_os_str(),
+        format!("--edition={}", edition).as_ref(),
+        "--crate-type=lib".as_ref(),
+        "--error-format=json".as_ref(),
+        out_dir.as_ref(),
+    ]);
+    if let Some(target) = target {
+        command.args(["--target", target]);
+    }
+    let output = command
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()?;

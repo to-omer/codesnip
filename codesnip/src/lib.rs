@@ -83,6 +83,9 @@ pub enum Command {
         #[structopt(long, value_name = "EDITION", default_value = "2021")]
         /// edition of the compiler.
         edition: String,
+        /// compilation target triple.
+        #[structopt(long, value_name = "TRIPLE")]
+        target: Option<String>,
         /// Show more outputs.
         #[structopt(long)]
         verbose: bool,
@@ -158,8 +161,9 @@ impl Command {
                 toolchain,
                 verbose,
                 edition,
+                target,
             } => {
-                verify::execute(map, toolchain, edition, *verbose)?;
+                verify::execute(map, toolchain, edition, target.as_deref(), *verbose)?;
             }
         }
         Ok(())
