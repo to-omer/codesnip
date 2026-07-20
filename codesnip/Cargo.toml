@@ -1,6 +1,6 @@
 [package]
 name = "codesnip"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["to-omer <toomerhs@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
