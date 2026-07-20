@@ -9,7 +9,7 @@ $ cargo install codesnip
 ## Dependencies
 ```toml
 [dependencies]
-codesnip = { version = "0.4.0", package = "codesnip_attr" }
+codesnip = { version = "0.5.0", package = "codesnip_attr" }
 ```
 
 ## Example
@@ -31,10 +31,18 @@ pub fn lcm(a: u64, b: u64) -> u64 {
 }
 ```
 
+Create a source config file.
+
+```toml
+# codesnip.toml
+[[sources]]
+path = "examples/math.rs"
+```
+
 This code extracted as below.
 
 ```sh
-$ cargo codesnip --target=examples/math.rs bundle gcd
+$ cargo codesnip --source-config codesnip.toml bundle gcd
 // codesnip-guard: gcd
 pub fn gcd(mut a: u64, mut b: u64) -> u64 {
     while b != 0 {
@@ -44,7 +52,7 @@ pub fn gcd(mut a: u64, mut b: u64) -> u64 {
     a
 }
 
-$ cargo codesnip --target=examples/math.rs bundle lcm
+$ cargo codesnip --source-config codesnip.toml bundle lcm
 // codesnip-guard: lcm
 pub fn lcm(a: u64, b: u64) -> u64 {
     a / gcd(a, b) * b
@@ -58,7 +66,7 @@ pub fn gcd(mut a: u64, mut b: u64) -> u64 {
     a
 }
 
-$ cargo codesnip --target=examples/math.rs bundle lcm --excludes gcd
+$ cargo codesnip --source-config codesnip.toml bundle lcm --excludes gcd
 // codesnip-guard: lcm
 pub fn lcm(a: u64, b: u64) -> u64 {
     a / gcd(a, b) * b
