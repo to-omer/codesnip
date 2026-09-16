@@ -113,6 +113,10 @@ impl ExtractAst<'_> {
 }
 
 impl VisitMut for ExtractAst<'_> {
+    fn visit_attributes_mut(&mut self, attrs: &mut Vec<Attribute>) {
+        check_cfg(attrs, self.cfg_enable, self.cfg_disable);
+    }
+
     fn visit_item_mod_mut(&mut self, node: &mut ItemMod) {
         let prev = (self.mod_dir.clone(), self.cwd.clone());
         if node.content.is_none() {
@@ -131,15 +135,9 @@ impl VisitMut for ExtractAst<'_> {
         self.cwd = prev.1;
     }
     fn visit_item_mut(&mut self, node: &mut Item) {
-        let mut is_skip = false;
-        if let Some(attrs) = node.get_attributes_mut() {
-            if !check_cfg(attrs, self.cfg_enable, self.cfg_disable) {
-                is_skip = true;
-            } else {
-                flatten_cfg_attr(attrs, self.cfg_enable, self.cfg_disable);
-            }
-        }
-        if is_skip {
+        if let Some(attrs) = node.get_attributes_mut()
+            && !check_cfg(attrs, self.cfg_enable, self.cfg_disable)
+        {
             *node = Item::Verbatim(TokenStream::new());
         } else {
             visit_mut::visit_item_mut(self, node);
@@ -177,16 +175,22 @@ fn find_pathstr_from_attrs(attrs: &[Attribute]) -> Option<String> {
 }
 
 fn check_cfg(attrs: &mut Vec<Attribute>, cfg_enable: &[Meta], cfg_disable: &[Meta]) -> bool {
+    flatten_cfg_attr(attrs, cfg_enable, cfg_disable);
     let mut next = Vec::new();
     let mut cond = true;
-    for attr in attrs.drain(..) {
+    for mut attr in attrs.drain(..) {
         if attr.path().is_ident("cfg")
             && let Meta::List(list) = &attr.meta
             && let Ok(pred) = list.parse_args()
         {
             match cfg_condition(&pred, cfg_enable, cfg_disable) {
                 Some(true) => {}
-                Some(false) => cond = false,
+                Some(false) => {
+                    cond = false;
+                    // Non-Item nodes are removed by rustc using this resolved condition.
+                    attr.meta = syn::parse_quote!(cfg(any()));
+                    next.push(attr);
+                }
                 None => next.push(attr),
             }
             continue;
@@ -206,14 +210,28 @@ fn flatten_cfg_attr(attrs: &mut Vec<Attribute>, cfg_enable: &[Meta], cfg_disable
         {
             let mut it = preds.iter();
             if let Some(pred) = it.next() {
-                match cfg_condition(pred, cfg_enable, cfg_disable) {
-                    Some(true) => {
-                        next.extend(it.map(to_attribute));
-                        continue;
-                    }
-                    Some(false) => continue,
-                    None => {}
+                let condition = cfg_condition(pred, cfg_enable, cfg_disable);
+                if condition == Some(false) {
+                    continue;
                 }
+                let mut expanded: Vec<_> = it.map(to_attribute).collect();
+                flatten_cfg_attr(&mut expanded, cfg_enable, cfg_disable);
+                for mut expanded in expanded {
+                    expanded.style = attr.style;
+                    if condition.is_none() {
+                        let meta = &expanded.meta;
+                        expanded.meta = if meta.path().is_ident("cfg")
+                            && let Meta::List(list) = meta
+                            && let Ok(inner) = list.parse_args::<Meta>()
+                        {
+                            syn::parse_quote!(cfg(any(not(#pred), #inner)))
+                        } else {
+                            syn::parse_quote!(cfg_attr(#pred, #meta))
+                        };
+                    }
+                    next.push(expanded);
+                }
+                continue;
             }
         }
         next.push(attr);
@@ -251,7 +269,28 @@ fn test_cfg_condition_enable_disable() {
     assert_eq!(cfg_condition(&pred_enable, &enable, &disable), Some(true));
     assert_eq!(cfg_condition(&pred_disable, &enable, &disable), Some(false));
     assert_eq!(cfg_condition(&pred_unknown, &enable, &disable), None);
-    assert_eq!(cfg_condition(&pred_any, &enable, &disable), None);
+    assert_eq!(cfg_condition(&pred_any, &enable, &disable), Some(true));
+
+    for (left, left_value) in [("yes", Some(true)), ("no", Some(false)), ("unknown", None)] {
+        for (right, right_value) in [("yes", Some(true)), ("no", Some(false)), ("unknown", None)] {
+            let values = [left_value, right_value];
+            for (op, decisive) in [("all", false), ("any", true)] {
+                let expected = if values.contains(&Some(decisive)) {
+                    Some(decisive)
+                } else if values.contains(&None) {
+                    None
+                } else {
+                    Some(!decisive)
+                };
+                let pred = syn::parse_str(&format!("{op}({left}, {right})")).unwrap();
+                assert_eq!(
+                    cfg_condition(&pred, &[syn::parse_quote!(yes)], &[syn::parse_quote!(no)]),
+                    expected,
+                    "{op}({left}, {right})"
+                );
+            }
+        }
+    }
 }
 
 fn cfg_condition(pred: &Meta, cfg_enable: &[Meta], cfg_disable: &[Meta]) -> Option<bool> {
@@ -262,15 +301,15 @@ fn cfg_condition(pred: &Meta, cfg_enable: &[Meta], cfg_disable: &[Meta]) -> Opti
                     let preds = list
                         .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
                         .ok()?;
-                    let mut result = true;
+                    let mut result = Some(true);
                     for pred in preds.iter() {
                         match cfg_condition(pred, cfg_enable, cfg_disable) {
                             Some(true) => {}
-                            Some(false) => result = false,
-                            None => return None,
+                            Some(false) => return Some(false),
+                            None => result = None,
                         }
                     }
-                    return Some(result);
+                    return result;
                 }
             }
             "any" => {
@@ -278,15 +317,15 @@ fn cfg_condition(pred: &Meta, cfg_enable: &[Meta], cfg_disable: &[Meta]) -> Opti
                     let preds = list
                         .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
                         .ok()?;
-                    let mut result = false;
+                    let mut result = Some(false);
                     for pred in preds.iter() {
                         match cfg_condition(pred, cfg_enable, cfg_disable) {
-                            Some(true) => result = true,
+                            Some(true) => return Some(true),
                             Some(false) => {}
-                            None => return None,
+                            None => result = None,
                         }
                     }
-                    return Some(result);
+                    return result;
                 }
             }
             "not" => {

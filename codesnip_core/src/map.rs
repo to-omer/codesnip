@@ -1,16 +1,18 @@
 use crate::{
     AttributeExt as _, ItemExt as _, PathExt as _, entry::EntryArgs, format::FormatOption,
 };
-use quote::ToTokens as _;
+use quote::{ToTokens as _, quote};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     iter::FromIterator,
 };
 use syn::{
-    Attribute, Item, ItemMod, Path,
+    Attribute, ForeignItem, ImplItem, Item, ItemMod, Meta, Path, Token, TraitItem,
     parse::Parse as _,
+    punctuated::Punctuated,
     visit::{self, Visit},
+    visit_mut::{self, VisitMut},
 };
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -199,7 +201,20 @@ impl Visit<'_> for CollectEntries<'_, '_, '_> {
                             && let Some((_, items)) = content
                         {
                             for item in items {
-                                link.push_item_with_filter(item, filter);
+                                let mut item = item.clone();
+                                if let Some(child_attrs) = item.get_attributes_mut() {
+                                    child_attrs.extend(
+                                        attrs
+                                            .iter()
+                                            .filter(|attr| attr.path().is_ident("cfg"))
+                                            .cloned()
+                                            .map(|mut attr| {
+                                                attr.style = syn::AttrStyle::Outer;
+                                                attr
+                                            }),
+                                    );
+                                }
+                                link.push_item_with_filter(&item, filter);
                             }
                         }
                     }
@@ -220,34 +235,98 @@ impl Filter<'_, '_> {
     }
 
     fn filter_attributes(self, attrs: &mut Vec<Attribute>) {
-        attrs.retain(|attr| {
-            !(attr.path().is_codesnip_entry()
-                || self.filter_attr.iter().any(|pat| pat == attr.path()))
-        })
+        attrs.retain_mut(|attr| self.retain_meta(&mut attr.meta));
     }
 
-    fn modify_item(self, mut item: Item) -> Option<Item> {
+    fn retain_meta(self, meta: &mut Meta) -> bool {
+        if meta.path().is_codesnip_entry() || self.filter_attr.iter().any(|pat| pat == meta.path())
+        {
+            return false;
+        }
+        if meta.path().is_ident("cfg_attr")
+            && let Meta::List(list) = meta
+            && let Ok(args) = list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+        {
+            let mut args = args.into_iter();
+            if let Some(pred) = args.next() {
+                let attrs: Vec<_> = args
+                    .filter_map(|mut attr| self.retain_meta(&mut attr).then_some(attr))
+                    .collect();
+                if attrs.is_empty() {
+                    return false;
+                }
+                list.tokens = quote!(#pred, #(#attrs),*);
+            }
+        }
+        true
+    }
+
+    fn modify_item(mut self, mut item: Item) -> Option<Item> {
         if let Some(attrs) = item.get_attributes()
             && self.is_skip_item(attrs)
         {
             return None;
         }
 
-        if let Some(attrs) = item.get_attributes_mut() {
-            self.filter_attributes(attrs);
-        }
-
-        if let Item::Mod(ItemMod {
-            content: Some((_, items)),
-            ..
-        }) = &mut item
-        {
-            *items = items
-                .drain(..)
-                .filter_map(|item| self.modify_item(item))
-                .collect::<Vec<_>>();
-        }
-
+        visit_mut::visit_item_mut(&mut self, &mut item);
         Some(item)
+    }
+}
+
+impl VisitMut for Filter<'_, '_> {
+    fn visit_attributes_mut(&mut self, attrs: &mut Vec<Attribute>) {
+        self.filter_attributes(attrs);
+    }
+
+    fn visit_item_mut(&mut self, item: &mut Item) {
+        let old = std::mem::replace(item, Item::Verbatim(Default::default()));
+        if let Some(filtered) = self.modify_item(old) {
+            *item = filtered;
+        }
+    }
+
+    fn visit_impl_item_mut(&mut self, item: &mut ImplItem) {
+        let attrs = match item {
+            ImplItem::Const(item) => &item.attrs,
+            ImplItem::Fn(item) => &item.attrs,
+            ImplItem::Type(item) => &item.attrs,
+            ImplItem::Macro(item) => &item.attrs,
+            _ => return,
+        };
+        if self.is_skip_item(attrs) {
+            *item = ImplItem::Verbatim(Default::default());
+        } else {
+            visit_mut::visit_impl_item_mut(self, item);
+        }
+    }
+
+    fn visit_trait_item_mut(&mut self, item: &mut TraitItem) {
+        let attrs = match item {
+            TraitItem::Const(item) => &item.attrs,
+            TraitItem::Fn(item) => &item.attrs,
+            TraitItem::Type(item) => &item.attrs,
+            TraitItem::Macro(item) => &item.attrs,
+            _ => return,
+        };
+        if self.is_skip_item(attrs) {
+            *item = TraitItem::Verbatim(Default::default());
+        } else {
+            visit_mut::visit_trait_item_mut(self, item);
+        }
+    }
+
+    fn visit_foreign_item_mut(&mut self, item: &mut ForeignItem) {
+        let attrs = match item {
+            ForeignItem::Fn(item) => &item.attrs,
+            ForeignItem::Static(item) => &item.attrs,
+            ForeignItem::Type(item) => &item.attrs,
+            ForeignItem::Macro(item) => &item.attrs,
+            _ => return,
+        };
+        if self.is_skip_item(attrs) {
+            *item = ForeignItem::Verbatim(Default::default());
+        } else {
+            visit_mut::visit_foreign_item_mut(self, item);
+        }
     }
 }

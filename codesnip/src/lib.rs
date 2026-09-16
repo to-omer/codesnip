@@ -86,6 +86,12 @@ pub enum Command {
         /// compilation target triple.
         #[structopt(long, value_name = "TRIPLE")]
         target: Option<String>,
+        /// Extra rustc argument (repeat; overrides source config).
+        #[structopt(long = "rustc-arg", value_name = "ARG", number_of_values = 1)]
+        rustc_args: Vec<String>,
+        /// Fail if rustc emits any warnings.
+        #[structopt(long)]
+        deny_warnings: bool,
         /// Show more outputs.
         #[structopt(long)]
         verbose: bool,
@@ -105,9 +111,9 @@ impl Opt {
 
 impl Config {
     pub fn execute(&self) -> anyhow::Result<()> {
-        let mut map = if let Some(source_config) = &self.source_config {
-            let target_config = Sources::load(source_config)?;
-            target_config.snippet_map()?
+        let source_config = self.source_config.as_ref().map(Sources::load).transpose()?;
+        let mut map = if let Some(source_config) = &source_config {
+            source_config.snippet_map()?
         } else {
             SnippetMap::new()
         };
@@ -122,12 +128,12 @@ impl Config {
             map.extend(mapt);
         }
 
-        self.cmd.execute(map)
+        self.cmd.execute(map, source_config.as_ref())
     }
 }
 
 impl Command {
-    pub fn execute(&self, map: SnippetMap) -> anyhow::Result<()> {
+    pub fn execute(&self, map: SnippetMap, source_config: Option<&Sources>) -> anyhow::Result<()> {
         match self {
             Self::Cache { output } => {
                 create_recursive(output)?.write_all(&bincode::serde::encode_to_vec(
@@ -162,8 +168,23 @@ impl Command {
                 verbose,
                 edition,
                 target,
+                rustc_args,
+                deny_warnings,
             } => {
-                verify::execute(map, toolchain, edition, target.as_deref(), *verbose)?;
+                let rustc_args = if rustc_args.is_empty() {
+                    source_config.map_or(&[][..], |config| config.rustc_args.as_slice())
+                } else {
+                    rustc_args.as_slice()
+                };
+                verify::execute(
+                    map,
+                    toolchain,
+                    edition,
+                    target.as_deref(),
+                    rustc_args,
+                    *deny_warnings || source_config.is_some_and(|config| config.deny_warnings),
+                    *verbose,
+                )?;
             }
         }
         Ok(())

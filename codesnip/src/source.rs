@@ -31,6 +31,10 @@ pub struct Sources {
     #[serde(default)]
     #[serde_as(as = "DisplayFromStr")]
     pub format: FormatOption,
+    #[serde(default)]
+    pub rustc_args: Vec<String>,
+    #[serde(default)]
+    pub deny_warnings: bool,
 }
 
 #[serde_as]

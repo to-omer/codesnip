@@ -198,6 +198,18 @@ JSON schema for snippet source config.
       "type": "string",
       "enum": ["rustfmt", "minify"],
       "default": "rustfmt"
+    },
+    "rustc_args": {
+      "description": "Extra rustc arguments for verify. Replaced by CLI --rustc-arg values when specified.",
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "examples": [["-Ctarget-feature=+avx2", "-Copt-level=3"]]
+    },
+    "deny_warnings": {
+      "description": "Fail verify if rustc emits warnings. CLI --deny-warnings also enables this.",
+      "type": "boolean",
+      "default": false
     }
   },
   "required": ["sources"]

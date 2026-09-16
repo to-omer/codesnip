@@ -16,6 +16,8 @@ pub fn execute(
     toolchain: &str,
     edition: &str,
     target: Option<&str>,
+    rustc_args: &[String],
+    deny_warnings: bool,
     verbose: bool,
 ) -> anyhow::Result<()> {
     let ok = AtomicBool::new(true);
@@ -59,8 +61,11 @@ pub fn execute(
             }
         }
         let contents = map.bundle(name, link, Default::default(), false);
-        match check(name, &contents, toolchain, edition, target) {
+        match check(name, &contents, toolchain, edition, target, rustc_args) {
             Ok((success, messages)) => {
+                let success = success
+                    && !(deny_warnings
+                        && messages.iter().any(|m| m.level == DiagnosticLevel::Warning));
                 if !success {
                     ok.store(false, std::sync::atomic::Ordering::Relaxed);
                     pb_println!("{:>12} {}", style("Failed").red(), name);
@@ -72,7 +77,7 @@ pub fn execute(
                         contents.len()
                     );
                 }
-                if verbose {
+                if verbose || !success {
                     for message in messages {
                         if let Some(message) = format_error_message(name, message) {
                             pb_println!("{}", message);
@@ -106,6 +111,7 @@ fn check(
     toolchain: &str,
     edition: &str,
     target: Option<&str>,
+    rustc_args: &[String],
 ) -> anyhow::Result<(bool, Vec<Diagnostic>)> {
     let dir = tempdir()?;
     let lib = dir.path().join(name);
@@ -121,20 +127,25 @@ fn check(
         lib.as_os_str(),
         format!("--edition={}", edition).as_ref(),
         "--crate-type=lib".as_ref(),
-        "--error-format=json".as_ref(),
         out_dir.as_ref(),
     ]);
     if let Some(target) = target {
         command.args(["--target", target]);
     }
     let output = command
+        .args(rustc_args)
+        .arg("--error-format=json")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()?;
-    let messages: Vec<Diagnostic> = String::from_utf8_lossy(&output.stderr)
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let messages: Vec<Diagnostic> = stderr
         .lines()
         .filter_map(|line| serde_json::from_str(line).ok())
         .collect();
+    if !output.status.success() && messages.is_empty() {
+        anyhow::bail!("rustc failed for `{name}`: {stderr}");
+    }
     Ok((output.status.success(), messages))
 }
 
