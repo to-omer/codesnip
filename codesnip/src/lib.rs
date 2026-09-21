@@ -68,7 +68,7 @@ pub enum Command {
         #[arg(long, value_name = "TOOLCHAIN", default_value = "stable")]
         /// release channel or custom toolchain.
         toolchain: String,
-        #[arg(long, value_name = "EDITION", default_value = "2021")]
+        #[arg(long, value_name = "EDITION", default_value = "2024")]
         /// edition of the compiler.
         edition: String,
         /// compilation target triple.
