@@ -174,7 +174,7 @@ fn format_error_message(name: &str, message: Diagnostic) -> Option<String> {
     s.push_str(&format!(
         "{}: {}\n",
         style(format!("{}{}", status, code)).fg(color),
-        &message.message
+        message.message
     ));
     for span in message.spans.iter() {
         let k = format!("{}", span.line_end).len();
@@ -191,7 +191,7 @@ fn format_error_message(name: &str, message: Diagnostic) -> Option<String> {
             s.push_str(&format!(
                 "\n{}{}\n{:>k$}",
                 style(format!("{:>k$} | ", line, k = k)).cyan().bright(),
-                &text.text,
+                text.text,
                 style(" | ").cyan().bright(),
                 k = k + 3,
             ));
