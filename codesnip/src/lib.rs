@@ -117,8 +117,7 @@ impl Config {
             let payload = buf
                 .strip_prefix(CACHE_HEADER)
                 .context("unsupported cache format; regenerate it with `cargo codesnip cache`")?;
-            let (mapt, _): (SnippetMap, _) =
-                bincode::serde::decode_from_slice(payload, bincode::config::standard())?;
+            let mapt: SnippetMap = postcard::from_bytes(payload)?;
             map.extend(mapt)?;
         }
 
@@ -130,7 +129,7 @@ impl Command {
     pub fn execute(&self, map: SnippetMap, source_config: Option<&Sources>) -> anyhow::Result<()> {
         match self {
             Self::Cache { output } => {
-                let payload = bincode::serde::encode_to_vec(&map, bincode::config::standard())?;
+                let payload = postcard::to_stdvec(&map)?;
                 let mut file = create_recursive(output)?;
                 file.write_all(CACHE_HEADER)?;
                 file.write_all(&payload)?;
