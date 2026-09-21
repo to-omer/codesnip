@@ -11,7 +11,7 @@ documentation = "https://docs.rs/codesnip_core"
 [dependencies]
 proc-macro2 = "1.0.107"
 quote = "1.0.47"
-rust_minify = "0.1.3"
+rust_minify = "0.2.0"
 serde = { version = "1.0.229", features = ["derive"] }
 syn = { version = "3.0.6", features = [
     "full",
