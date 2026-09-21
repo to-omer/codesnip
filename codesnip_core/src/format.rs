@@ -1,7 +1,6 @@
 use rust_minify::{MinifyOption, minify_opt};
 use std::{
     io::Write as _,
-    path::Path,
     process::{Command, Stdio},
     str::FromStr,
 };
@@ -26,9 +25,9 @@ impl FromStr for FormatOption {
 
 impl FormatOption {
     pub const POSSIBLE_VALUES: [&'static str; 2] = ["rustfmt", "minify"];
-    pub fn format(&self, content: &str) -> Option<String> {
+    pub fn format(&self, content: &str, edition: &str) -> Option<String> {
         match self {
-            Self::Rustfmt => format_with_rustfmt(content),
+            Self::Rustfmt => format_with_rustfmt(content, edition),
             Self::Minify => minify_opt(
                 content,
                 &MinifyOption {
@@ -42,18 +41,18 @@ impl FormatOption {
 }
 
 pub fn rustfmt_exits() -> bool {
-    let rustfmt = Path::new(env!("CARGO_HOME")).join("bin").join("rustfmt");
-    let output = Command::new(rustfmt).arg("--version").output();
+    let output = Command::new("rustfmt").arg("--version").output();
     output
         .map(|output| output.status.success())
         .unwrap_or_default()
 }
 
-pub fn format_with_rustfmt(s: &str) -> Option<String> {
-    let rustfmt = Path::new(env!("CARGO_HOME")).join("bin").join("rustfmt");
-    let mut command = Command::new(rustfmt)
+pub fn format_with_rustfmt(s: &str, edition: &str) -> Option<String> {
+    let mut command = Command::new("rustfmt")
         .args([
             "--quiet",
+            "--edition",
+            edition,
             "--config",
             "unstable_features=true,normalize_doc_attributes=true,newline_style=Unix",
         ])
@@ -74,7 +73,7 @@ pub fn format_with_rustfmt(s: &str) -> Option<String> {
 #[test]
 fn test_format_contents() {
     assert_eq!(
-        format_with_rustfmt("fn  main ( ) { }"),
+        format_with_rustfmt("fn  main ( ) { }", "2024"),
         Some("fn main() {}\n".to_string())
     )
 }

@@ -66,6 +66,25 @@ fn verify_uses_source_config_and_cli_overrides() {
 }
 
 #[test]
+fn edition_applies_to_formatting_and_verification() {
+    let source = "#[codesnip::entry] pub fn gen() {}";
+    let config = serde_json::json!({ "format": "rustfmt" });
+    let output = run_with_config(
+        source,
+        &["bundle", "gen", "--edition", "2021"],
+        config.clone(),
+    );
+    assert!(output.status.success(), "{:?}", output);
+    assert_eq!(output.stdout, b"// codesnip-guard: gen\npub fn gen() {}\n");
+    let output = run_with_config(
+        source,
+        &["--edition", "2021", "verify", "--deny-warnings"],
+        config,
+    );
+    assert!(output.status.success(), "{:?}", output);
+}
+
+#[test]
 fn warnings_fail_only_when_requested_and_are_displayed() {
     let source = "#[codesnip::entry] pub fn sample() { let unused = 1; }";
     let output = run(source, &["verify", "--verbose"]);

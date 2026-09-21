@@ -5,7 +5,7 @@ use syn::Item;
 
 pub trait SnippetMapExt {
     fn collect_entries(&mut self, items: &[Item], filter: Filter) -> Result<(), Error>;
-    fn format_all(&mut self, option: &FormatOption);
+    fn format_all(&mut self, option: &FormatOption, edition: &str);
 }
 
 impl SnippetMapExt for SnippetMap {
@@ -25,7 +25,7 @@ impl SnippetMapExt for SnippetMap {
         pb.finish_and_clear();
         Ok(())
     }
-    fn format_all(&mut self, option: &FormatOption) {
+    fn format_all(&mut self, option: &FormatOption, edition: &str) {
         if matches!(option, FormatOption::Rustfmt) && !rustfmt_exits() {
             eprintln!("warning: rustfmt not found.");
             return;
@@ -40,7 +40,7 @@ impl SnippetMapExt for SnippetMap {
         pb.set_prefix("Formatting");
         self.map.par_iter_mut().for_each(|(name, link)| {
             pb.set_message(name.to_owned());
-            if !link.format(option) {
+            if !link.format(option, edition) {
                 pb.println(format!("warning: Failed to format `{}`.", name));
             }
             pb.inc(1);

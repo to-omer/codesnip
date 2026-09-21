@@ -123,12 +123,12 @@ impl Sources {
         };
         Ok(sources)
     }
-    pub fn snippet_map(&self) -> anyhow::Result<SnippetMap> {
+    pub fn snippet_map(&self, edition: &str) -> anyhow::Result<SnippetMap> {
         let mut map = SnippetMap::new();
         for source in &self.sources {
             map.extend(source.snippet_map(self)?)?;
         }
-        map.format_all(&self.format);
+        map.format_all(&self.format, edition);
         Ok(map)
     }
 }

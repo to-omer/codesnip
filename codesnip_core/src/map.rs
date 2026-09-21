@@ -188,8 +188,8 @@ impl LinkedSnippet {
     pub fn push_includes(&mut self, includes: impl IntoIterator<Item = String>) {
         self.includes.extend(includes);
     }
-    pub fn format(&mut self, option: &FormatOption) -> bool {
-        if let Some(formatted) = option.format(&self.contents) {
+    pub fn format(&mut self, option: &FormatOption, edition: &str) -> bool {
+        if let Some(formatted) = option.format(&self.contents, edition) {
             self.contents = formatted;
             true
         } else {

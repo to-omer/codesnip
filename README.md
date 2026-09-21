@@ -115,6 +115,7 @@ FLAGS:
 OPTIONS:
         --use-cache <FILE>...     Use cached data
         --source-config <FILE>    Source config file path
+        --edition <EDITION>       Edition for formatting and verification [default: 2024]
 
 SUBCOMMANDS:
     cache      Save analyzed data into file

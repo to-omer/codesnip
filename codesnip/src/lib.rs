@@ -36,6 +36,10 @@ pub struct Config {
     #[arg(long, value_name = "FILE")]
     pub source_config: Option<PathBuf>,
 
+    /// Edition for formatting and verification.
+    #[arg(long, global = true, value_name = "EDITION", default_value = "2024")]
+    pub edition: String,
+
     #[command(subcommand)]
     pub cmd: Command,
 }
@@ -68,9 +72,6 @@ pub enum Command {
         #[arg(long, value_name = "TOOLCHAIN", default_value = "stable")]
         /// release channel or custom toolchain.
         toolchain: String,
-        #[arg(long, value_name = "EDITION", default_value = "2024")]
-        /// edition of the compiler.
-        edition: String,
         /// compilation target triple.
         #[arg(long, value_name = "TRIPLE")]
         target: Option<String>,
@@ -103,7 +104,7 @@ impl Config {
     pub fn execute(&self) -> anyhow::Result<()> {
         let source_config = self.source_config.as_ref().map(Sources::load).transpose()?;
         let mut map = if let Some(source_config) = &source_config {
-            source_config.snippet_map()?
+            source_config.snippet_map(&self.edition)?
         } else {
             SnippetMap::new()
         };
@@ -120,12 +121,17 @@ impl Config {
             map.extend(mapt)?;
         }
 
-        self.cmd.execute(map, source_config.as_ref())
+        self.cmd.execute(map, source_config.as_ref(), &self.edition)
     }
 }
 
 impl Command {
-    pub fn execute(&self, map: SnippetMap, source_config: Option<&Sources>) -> anyhow::Result<()> {
+    pub fn execute(
+        &self,
+        map: SnippetMap,
+        source_config: Option<&Sources>,
+        edition: &str,
+    ) -> anyhow::Result<()> {
         match self {
             Self::Cache { output } => {
                 let payload = postcard::to_stdvec(&map)?;
@@ -145,7 +151,6 @@ impl Command {
             Self::Verify {
                 toolchain,
                 verbose,
-                edition,
                 target,
                 rustc_args,
                 deny_warnings,
