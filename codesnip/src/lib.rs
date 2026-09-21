@@ -3,6 +3,7 @@ pub mod source;
 pub mod verify;
 
 use anyhow::Context as _;
+use clap::{Args, Parser, Subcommand};
 pub use codesnip_attr::{entry, skip};
 use codesnip_core::{Error::FileNotFound, SnippetMap};
 use source::Sources;
@@ -11,85 +12,83 @@ use std::{
     io::{Read as _, Write as _, stdout},
     path::{Path, PathBuf},
 };
-use structopt::{
-    StructOpt,
-    clap::AppSettings::{DeriveDisplayOrder, InferSubcommands},
-};
 
-#[derive(Debug, StructOpt)]
-#[structopt(
+#[derive(Debug, Parser)]
+#[command(
     bin_name = "cargo",
-    global_settings = &[DeriveDisplayOrder, InferSubcommands]
+    version,
+    propagate_version = true,
+    infer_subcommands = true
 )]
 pub enum Opt {
     /// Extract code snippets.
     Codesnip(Config),
 }
 
-#[derive(Debug, StructOpt)]
-#[structopt(rename_all = "kebab-case")]
+#[derive(Debug, Args)]
+#[command(rename_all = "kebab-case")]
 pub struct Config {
     /// Use cached data.
-    #[structopt(long, value_name = "FILE", parse(from_os_str))]
+    #[arg(long, value_name = "FILE", num_args = 1..)]
     pub use_cache: Vec<PathBuf>,
 
     /// Source config file path. see https://github.com/to-omer/codesnip#source-config
-    #[structopt(long, value_name = "FILE", parse(from_os_str))]
+    #[arg(long, value_name = "FILE")]
     pub source_config: Option<PathBuf>,
 
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     pub cmd: Command,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Subcommand)]
 pub enum Command {
     /// Save analyzed data into file.
     Cache {
         /// Output file.
-        #[structopt(value_name = "FILE", parse(from_os_str))]
+        #[arg(value_name = "FILE")]
         output: PathBuf,
     },
     /// List names.
     List {
         /// Not hide `entry(name = "_...")`.
-        #[structopt(long)]
+        #[arg(long)]
         not_hide: bool,
     },
     /// Bundle
     Bundle {
         /// snippet name.
-        #[structopt(value_name = "NAME", required = true)]
+        #[arg(value_name = "NAME", required = true)]
         names: Vec<String>,
         /// excludes.
-        #[structopt(short, long, value_name = "NAME")]
+        #[arg(short, long, value_name = "NAME", num_args = 1..)]
         excludes: Vec<String>,
     },
     /// Verify
     Verify {
-        #[structopt(long, value_name = "TOOLCHAIN", default_value = "stable")]
+        #[arg(long, value_name = "TOOLCHAIN", default_value = "stable")]
         /// release channel or custom toolchain.
         toolchain: String,
-        #[structopt(long, value_name = "EDITION", default_value = "2021")]
+        #[arg(long, value_name = "EDITION", default_value = "2021")]
         /// edition of the compiler.
         edition: String,
         /// compilation target triple.
-        #[structopt(long, value_name = "TRIPLE")]
+        #[arg(long, value_name = "TRIPLE")]
         target: Option<String>,
         /// Extra rustc argument (repeat; overrides source config).
-        #[structopt(long = "rustc-arg", value_name = "ARG", number_of_values = 1)]
+        #[arg(long = "rustc-arg", value_name = "ARG")]
         rustc_args: Vec<String>,
         /// Fail if rustc emits any warnings.
-        #[structopt(long)]
+        #[arg(long)]
         deny_warnings: bool,
         /// Show more outputs.
-        #[structopt(long)]
+        #[arg(long)]
         verbose: bool,
     },
 }
 
 impl Opt {
     pub fn from_args() -> Self {
-        StructOpt::from_args()
+        Self::parse()
     }
 
     pub fn execute(&self) -> anyhow::Result<()> {
