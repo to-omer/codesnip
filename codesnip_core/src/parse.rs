@@ -12,6 +12,12 @@ use syn::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("invalid snippet entry: {0}")]
+    InvalidEntry(#[from] syn::Error),
+    #[error("conflicting `when` conditions for snippet `{0}`")]
+    ConflictingWhen(String),
+    #[error("snippet `{0}` not found")]
+    SnippetNotFound(String),
     #[error("io error: {0}")]
     IoError(#[from] std::io::Error),
     #[error("Failed to parse ")]

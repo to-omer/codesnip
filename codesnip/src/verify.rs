@@ -60,7 +60,15 @@ pub fn execute(
                 );
             }
         }
-        let contents = map.bundle(name, link, Default::default(), false);
+        let contents = match map.bundle(&[name.as_str()], Default::default(), false) {
+            Ok(contents) => contents,
+            Err(err) => {
+                ok.store(false, std::sync::atomic::Ordering::Relaxed);
+                pb_println!("{}: {}", style("error").red(), err);
+                pb.inc(1);
+                return;
+            }
+        };
         match check(name, &contents, toolchain, edition, target, rustc_args) {
             Ok((success, messages)) => {
                 let success = success
@@ -114,7 +122,7 @@ fn check(
     rustc_args: &[String],
 ) -> anyhow::Result<(bool, Vec<Diagnostic>)> {
     let dir = tempdir()?;
-    let lib = dir.path().join(name);
+    let lib = dir.path().join("snippet.rs");
     {
         let mut file = File::create(&lib)?;
         file.write_all(contents.as_bytes())?;

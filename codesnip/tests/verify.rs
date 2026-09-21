@@ -213,3 +213,39 @@ fn cfg_expansion_preserves_members_and_inlined_module_conditions() {
     assert!(!output.status.success(), "{:?}", output);
     assert!(String::from_utf8_lossy(&output.stderr).contains("E0308"));
 }
+
+#[test]
+fn and_entries_are_bundled_and_verified() {
+    let source = r#"
+        #[codesnip::entry] pub struct A;
+        #[codesnip::entry] pub trait B {}
+        #[codesnip::entry(when("A", "B"))] impl B for A {}
+        #[codesnip::entry("C", when("A", "B"))]
+        pub fn c() { fn check<T: B>() {} check::<A>(); }
+    "#;
+    let dir = tempfile::tempdir().unwrap();
+    let cache = dir.path().join("cache.bin");
+    let output = run(source, &["cache", cache.to_str().unwrap()]);
+    assert!(output.status.success(), "{:?}", output);
+    let cache_arg = format!("--use-cache={}", cache.display());
+    for (args, has_impl) in [
+        (vec!["bundle", "A"], false),
+        (vec!["bundle", "B"], false),
+        (vec!["bundle", "A", "B"], true),
+        (vec!["bundle", "C"], true),
+        (vec!["bundle", "B", "--excludes", "A"], true),
+    ] {
+        let mut command = vec![cache_arg.as_str()];
+        command.extend(args);
+        let output = run("", &command);
+        assert!(output.status.success(), "{:?}", output);
+        let contents = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(contents.contains("impl B for A"), has_impl, "{contents}");
+    }
+    let output = run("", &[&cache_arg, "verify", "--deny-warnings"]);
+    assert!(output.status.success(), "{:?}", output);
+    std::fs::write(&cache, b"old cache").unwrap();
+    let output = run("", &[&cache_arg, "list"]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unsupported cache format"));
+}

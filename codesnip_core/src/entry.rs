@@ -1,5 +1,6 @@
 use crate::ext::ItemExt as _;
 use quote::ToTokens;
+use std::{collections::BTreeSet, fmt::Write as _};
 use syn::{
     Error, Ident, Item, LitStr, Token,
     ext::IdentExt,
@@ -11,8 +12,9 @@ use syn::{
 
 #[derive(Debug, Clone, Default)]
 pub struct Entry {
-    pub name: String,
+    pub name: Option<String>,
     pub include: Vec<String>,
+    pub when: BTreeSet<String>,
     pub inline: bool,
 }
 
@@ -25,6 +27,7 @@ pub struct EntryArgs {
 pub enum EntryArg {
     Name(EntryArgName),
     Include(EntryArgInclude),
+    When(EntryArgWhen),
     Inline(EntryArgInline),
     NoInline(EntryArgNoInline),
 }
@@ -40,6 +43,28 @@ pub struct EntryArgInclude {
     pub include_token: Ident,
     pub paren_token: Paren,
     pub includes: Punctuated<NoWhitespaceLitStr, Token![,]>,
+}
+
+#[derive(Eq, PartialEq, Clone, Debug, Hash)]
+pub struct EntryArgWhen {
+    pub when_token: Ident,
+    pub paren_token: Paren,
+    pub conditions: Punctuated<NoWhitespaceLitStr, Token![,]>,
+}
+
+const ANONYMOUS_PREFIX: &str = "_codesnip_and_";
+
+pub fn anonymous_name(conditions: &BTreeSet<String>) -> String {
+    let mut name = ANONYMOUS_PREFIX.to_owned();
+    for (index, condition) in conditions.iter().enumerate() {
+        if index != 0 {
+            name.push('_');
+        }
+        for byte in condition.bytes() {
+            write!(&mut name, "{byte:02x}").expect("writing to a String cannot fail");
+        }
+    }
+    name
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
@@ -75,6 +100,13 @@ impl EntryArgs {
                     entry
                         .include
                         .extend(arg.includes.iter().map(|lit| lit.value()));
+                }
+                EntryArg::When(arg) => {
+                    let conditions = arg.conditions.iter().map(|lit| lit.value()).collect();
+                    if !entry.when.is_empty() && entry.when != conditions {
+                        return Err(Error::new_spanned(arg, "conflicting `when` conditions"));
+                    }
+                    entry.when = conditions;
                 }
                 EntryArg::Inline(arg) => {
                     if !item.is_mod() {
@@ -113,14 +145,22 @@ impl EntryArgs {
         if let Some(inline) = inline {
             entry.inline = inline;
         }
-        if name.is_none() {
+        if name.is_none() && entry.when.is_empty() {
             name = default_name;
         }
-        if let Some(name) = name {
-            entry.name = name;
-        } else {
+        if name.is_none() && entry.when.is_empty() {
             return Err(Error::new_spanned(self, "`name` unspecified"));
         }
+        if name
+            .as_ref()
+            .is_some_and(|name| name.starts_with(ANONYMOUS_PREFIX))
+        {
+            return Err(Error::new_spanned(
+                self,
+                "`_codesnip_and_` is reserved for anonymous snippets",
+            ));
+        }
+        entry.name = name;
         Ok(entry)
     }
 }
@@ -143,14 +183,18 @@ impl Parse for EntryArg {
             match token.to_string().as_str() {
                 "name" => EntryArgName::parse_after_token(token, input).map(Self::Name),
                 "include" => EntryArgInclude::parse_after_token(token, input).map(Self::Include),
+                "when" => EntryArgWhen::parse_after_token(token, input).map(Self::When),
                 "inline" => EntryArgInline::parse_after_token(token, input).map(Self::Inline),
                 "no_inline" => {
                     EntryArgNoInline::parse_after_token(token, input).map(Self::NoInline)
                 }
-                _ => Err(input.error("expected `name` | `include` | `inline` | `no_inline`")),
+                _ => {
+                    Err(input
+                        .error("expected `name` | `include` | `when` | `inline` | `no_inline`"))
+                }
             }
         } else {
-            Err(input.error("expected `name` | `include` | `inline` | `no_inline`"))
+            Err(input.error("expected `name` | `include` | `when` | `inline` | `no_inline`"))
         }
     }
 }
@@ -182,6 +226,12 @@ impl Parse for NoWhitespaceLitStr {
                 "string literal should not contain whitespace",
             ));
         }
+        if litstr.value().starts_with(ANONYMOUS_PREFIX) {
+            return Err(Error::new_spanned(
+                litstr,
+                "`_codesnip_and_` is reserved; give the snippet an explicit name to reference it",
+            ));
+        }
         Ok(Self { litstr })
     }
 }
@@ -194,6 +244,23 @@ impl EntryArgInclude {
             include_token,
             paren_token: parenthesized!(content in input),
             includes: content.call(Punctuated::parse_separated_nonempty)?,
+        })
+    }
+}
+
+#[allow(clippy::mixed_read_write_in_expression)]
+impl EntryArgWhen {
+    fn parse_after_token(when_token: Ident, input: ParseStream) -> syn::Result<Self> {
+        let content;
+        let paren_token = parenthesized!(content in input);
+        let conditions = content.parse_terminated(NoWhitespaceLitStr::parse, Token![,])?;
+        if conditions.is_empty() || conditions.iter().any(|name| name.value().is_empty()) {
+            return Err(content.error("`when` requires nonempty snippet names"));
+        }
+        Ok(Self {
+            when_token,
+            paren_token,
+            conditions,
         })
     }
 }
@@ -229,6 +296,7 @@ impl ToTokens for EntryArg {
         match self {
             EntryArg::Name(arg) => arg.to_tokens(tokens),
             EntryArg::Include(arg) => arg.to_tokens(tokens),
+            EntryArg::When(arg) => arg.to_tokens(tokens),
             EntryArg::Inline(arg) => arg.to_tokens(tokens),
             EntryArg::NoInline(arg) => arg.to_tokens(tokens),
         }
@@ -253,6 +321,14 @@ impl ToTokens for EntryArgInclude {
     }
 }
 
+impl ToTokens for EntryArgWhen {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        self.when_token.to_tokens(tokens);
+        self.paren_token
+            .surround(tokens, |tokens| self.conditions.to_tokens(tokens));
+    }
+}
+
 impl ToTokens for EntryArgInline {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         self.token.to_tokens(tokens)
@@ -268,5 +344,47 @@ impl ToTokens for EntryArgNoInline {
 impl ToTokens for NoWhitespaceLitStr {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         self.litstr.to_tokens(tokens)
+    }
+}
+
+#[test]
+fn test_entry_args() {
+    let item: Item = syn::parse_quote!(
+        struct A;
+    );
+    for (args, name, when) in [
+        ("", Some("A"), vec![]),
+        (r#"when("A", "B")"#, None, vec!["A", "B"]),
+        (
+            r#""C", when("B", "A", "A"), when("A", "B")"#,
+            Some("C"),
+            vec!["A", "B"],
+        ),
+    ] {
+        let entry = syn::parse_str::<EntryArgs>(args)
+            .unwrap()
+            .try_to_entry(&item)
+            .unwrap();
+        assert_eq!(entry.name.as_deref(), name);
+        assert_eq!(entry.when, when.into_iter().map(String::from).collect());
+    }
+    for args in [
+        "when()",
+        r#"when("")"#,
+        r#"when("A B")"#,
+        r#"when("A"), when("B")"#,
+        r#""A", "B""#,
+        r#""_codesnip_and_41""#,
+        r#"include("_codesnip_and_41")"#,
+        "unknown",
+        "inline",
+    ] {
+        assert!(
+            syn::parse_str::<EntryArgs>(args)
+                .and_then(|args| args.try_to_entry(&item))
+                .is_err(),
+            "{}",
+            args
+        );
     }
 }

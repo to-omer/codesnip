@@ -126,7 +126,7 @@ impl Sources {
     pub fn snippet_map(&self) -> anyhow::Result<SnippetMap> {
         let mut map = SnippetMap::new();
         for source in &self.sources {
-            map.extend(source.snippet_map(self)?);
+            map.extend(source.snippet_map(self)?)?;
         }
         map.format_all(&self.format);
         Ok(map)
@@ -171,10 +171,11 @@ impl Source {
                 .or(sources.filter_item.as_ref())
                 .unwrap_or(&filter),
         );
-        map.collect_entries(&items, filter);
+        map.collect_entries(&items, filter)?;
 
         if let Some(prefix) = &self.prefix {
-            map = map
+            map.map = map
+                .map
                 .into_iter()
                 .map(|(k, v)| (format!("{}_{}", prefix, k), v))
                 .collect();

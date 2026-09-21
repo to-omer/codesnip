@@ -79,7 +79,7 @@ pub fn lcm(a: u64, b: u64) -> u64 {
 #[codesnip::skip]                      skip item for snippet
 
 AttrList:
-    NAME | INCLUDE | INLINE
+    NAME | INCLUDE | WHEN | INLINE
 
 NAME:
     Lit
@@ -87,6 +87,9 @@ NAME:
 
 INCLUDE:                  specify NAME
     include (Lit,*)
+
+WHEN:                     bundle when all NAMEs are selected
+    when (Lit,+)          hidden if NAME is omitted
 
 INLINE:
     inline                inline `mod ... { ... }`

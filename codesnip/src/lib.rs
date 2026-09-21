@@ -58,8 +58,8 @@ pub enum Command {
     /// Bundle
     Bundle {
         /// snippet name.
-        #[structopt(value_name = "NAME")]
-        name: String,
+        #[structopt(value_name = "NAME", required = true)]
+        names: Vec<String>,
         /// excludes.
         #[structopt(short, long, value_name = "NAME")]
         excludes: Vec<String>,
@@ -98,6 +98,8 @@ impl Opt {
     }
 }
 
+const CACHE_HEADER: &[u8] = b"CODESNIP\0\x01";
+
 impl Config {
     pub fn execute(&self) -> anyhow::Result<()> {
         let source_config = self.source_config.as_ref().map(Sources::load).transpose()?;
@@ -112,9 +114,12 @@ impl Config {
             buf.clear();
             let mut file = File::open(cache).map_err(|err| FileNotFound(cache.clone(), err))?;
             file.read_to_end(&mut buf)?;
+            let payload = buf
+                .strip_prefix(CACHE_HEADER)
+                .context("unsupported cache format; regenerate it with `cargo codesnip cache`")?;
             let (mapt, _): (SnippetMap, _) =
-                bincode::serde::decode_from_slice(&buf, bincode::config::standard())?;
-            map.extend(mapt);
+                bincode::serde::decode_from_slice(payload, bincode::config::standard())?;
+            map.extend(mapt)?;
         }
 
         self.cmd.execute(map, source_config.as_ref())
@@ -125,22 +130,19 @@ impl Command {
     pub fn execute(&self, map: SnippetMap, source_config: Option<&Sources>) -> anyhow::Result<()> {
         match self {
             Self::Cache { output } => {
-                create_recursive(output)?.write_all(&bincode::serde::encode_to_vec(
-                    &map,
-                    bincode::config::standard(),
-                )?)?;
+                let payload = bincode::serde::encode_to_vec(&map, bincode::config::standard())?;
+                let mut file = create_recursive(output)?;
+                file.write_all(CACHE_HEADER)?;
+                file.write_all(&payload)?;
             }
             Self::List { not_hide } => {
                 let list = map.keys(!not_hide).join(" ");
                 stdout().write_all(list.as_bytes())?;
             }
-            Self::Bundle { name, excludes } => {
-                let link = map
-                    .map
-                    .get(name)
-                    .with_context(|| format!("snippet `{}` not found", name))?;
-                let excludes = excludes.iter().map(|s| s.as_str()).collect();
-                stdout().write_all(map.bundle(name, link, excludes, true).as_bytes())?;
+            Self::Bundle { names, excludes } => {
+                let names: Vec<_> = names.iter().map(String::as_str).collect();
+                let present = excludes.iter().map(String::as_str).collect();
+                stdout().write_all(map.bundle(&names, present, true)?.as_bytes())?;
             }
             Self::Verify {
                 toolchain,
