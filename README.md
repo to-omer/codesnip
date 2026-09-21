@@ -116,7 +116,6 @@ OPTIONS:
 SUBCOMMANDS:
     cache      Save analyzed data into file
     list       List names
-    snippet    Output snippet for VSCode
     bundle     Bundle
     verify     Verify
     help       Prints this message or the help of the given subcommand(s)

@@ -2,11 +2,9 @@ pub mod mapping;
 pub mod source;
 pub mod verify;
 
-use crate::mapping::SnippetMapExt as _;
 use anyhow::Context as _;
 pub use codesnip_attr::{entry, skip};
 use codesnip_core::{Error::FileNotFound, SnippetMap};
-use serde_json::to_string;
 use source::Sources;
 use std::{
     fs::File,
@@ -56,15 +54,6 @@ pub enum Command {
         /// Not hide `entry(name = "_...")`.
         #[structopt(long)]
         not_hide: bool,
-    },
-    /// Output snippet for VSCode.
-    Snippet {
-        /// Output file, default stdout.
-        #[structopt(value_name = "FILE", parse(from_os_str))]
-        output: Option<PathBuf>,
-        /// ignore includes
-        #[structopt(long)]
-        ignore_include: bool,
     },
     /// Bundle
     Bundle {
@@ -144,16 +133,6 @@ impl Command {
             Self::List { not_hide } => {
                 let list = map.keys(!not_hide).join(" ");
                 stdout().write_all(list.as_bytes())?;
-            }
-            Self::Snippet {
-                output,
-                ignore_include,
-            } => {
-                let snippet = to_string(&map.to_vscode(*ignore_include))?;
-                match output {
-                    Some(file) => create_recursive(file)?.write_all(snippet.as_bytes())?,
-                    None => stdout().write_all(snippet.as_bytes())?,
-                }
             }
             Self::Bundle { name, excludes } => {
                 let link = map

@@ -1,30 +1,11 @@
 use codesnip_core::{Filter, FormatOption, SnippetMap, rustfmt_exits};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
-use serde::Serialize;
-use std::collections::BTreeMap;
 use syn::Item;
 
 pub trait SnippetMapExt {
     fn collect_entries(&mut self, items: &[Item], filter: Filter);
     fn format_all(&mut self, option: &FormatOption);
-    fn to_vscode(&self, ignore_include: bool) -> BTreeMap<String, VsCode>;
-}
-
-#[derive(Serialize)]
-pub struct VsCode {
-    prefix: String,
-    body: String,
-    scope: String,
-}
-impl From<(String, String)> for VsCode {
-    fn from((prefix, contents): (String, String)) -> Self {
-        Self {
-            prefix,
-            body: contents.replace('$', "\\$"),
-            scope: "rust".to_string(),
-        }
-    }
 }
 
 impl SnippetMapExt for SnippetMap {
@@ -64,22 +45,5 @@ impl SnippetMapExt for SnippetMap {
             pb.inc(1);
         });
         pb.finish_and_clear();
-    }
-    fn to_vscode(&self, ignore_include: bool) -> BTreeMap<String, VsCode> {
-        self.map
-            .iter()
-            .map(|(name, link)| {
-                (
-                    name.as_str(),
-                    if ignore_include {
-                        link.contents.to_string()
-                    } else {
-                        self.bundle(name, link, Default::default(), false)
-                    },
-                )
-            })
-            .filter(|(k, _)| !k.starts_with('_'))
-            .map(|(k, v)| (k.to_owned(), From::from((k.to_owned(), v))))
-            .collect::<BTreeMap<_, _>>()
     }
 }
