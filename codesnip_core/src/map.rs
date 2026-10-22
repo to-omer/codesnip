@@ -2,6 +2,7 @@ use crate::{
     AttributeExt as _, Error, ItemExt as _, PathExt as _,
     entry::{EntryArgs, anonymous_name},
     format::FormatOption,
+    parse::inherit_cfg,
 };
 use quote::{ToTokens as _, quote};
 use serde::{Deserialize, Serialize};
@@ -256,18 +257,7 @@ impl Visit<'_> for CollectEntries<'_, '_, '_> {
                         {
                             for item in items {
                                 let mut item = item.clone();
-                                if let Some(child_attrs) = item.get_attributes_mut() {
-                                    child_attrs.extend(
-                                        attrs
-                                            .iter()
-                                            .filter(|attr| attr.path().is_ident("cfg"))
-                                            .cloned()
-                                            .map(|mut attr| {
-                                                attr.style = syn::AttrStyle::Outer;
-                                                attr
-                                            }),
-                                    );
-                                }
+                                inherit_cfg(attrs, &mut item);
                                 link.push_item_with_filter(&item, filter);
                             }
                         }

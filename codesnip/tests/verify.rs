@@ -234,6 +234,439 @@ fn cfg_expansion_preserves_members_and_inlined_module_conditions() {
 }
 
 #[test]
+fn cfg_removes_disabled_statements_from_bundles() {
+    let source = r#"
+        #[codesnip::entry("sample", inline)]
+        mod sample {
+            pub fn sample() -> u8 {
+                #[cfg(nightly,)]
+                macro_rules! kept { ($value:expr) => { $value }; }
+                #[cfg(nightly)]
+                #[cfg(true)]
+                #[cfg_attr(false, cfg(test))]
+                let value = 1;
+                #[cfg(test)]
+                let removed_binding = missing();
+                #[cfg(test)]
+                let Some(removed_let_else) = missing() else { mod removed_let_else_module; };
+                #[cfg(test)]
+                fn removed_item() { mod removed_item_module; }
+                #[cfg(test)]
+                removed_call();
+                #[cfg_attr(nightly, cfg(test))]
+                { mod removed_block_module; }
+                #[cfg(test)]
+                if true { mod removed_if_module; }
+                #[cfg(test)]
+                removed_braces! { let ghost count = 0int; }
+                #[cfg(test)]
+                removed_parens!();
+                #[cfg(test)]
+                removed_brackets![];
+                #[cfg(false,)]
+                removed_literal();
+                #[cfg_attr(true, cfg(false))]
+                removed_literal_attr();
+                #[cfg(not(nightly,))]
+                removed_trailing_comma();
+                #[cfg(feature = "extra")]
+                let _: () = 1;
+                let nested = || {
+                    #[cfg_attr(not(test), cfg(any()))]
+                    removed_nested! {}
+                    #[cfg(test)]
+                    let removed_nested_binding = missing();
+                    kept!(value)
+                };
+                nested()
+            }
+            pub fn tail_macro() {
+                #[cfg(test)]
+                removed_tail!()
+            }
+            pub fn tail_block() -> u8 {
+                #[cfg(nightly)]
+                { let kept_tail = 1; kept_tail }
+                #[cfg(test)]
+                { 2 }
+            }
+        }
+    "#;
+    let output = run(source, &["bundle", "sample"]);
+    assert!(output.status.success(), "{:?}", output);
+    let contents = String::from_utf8(output.stdout).unwrap();
+    assert!(!contents.contains("removed_"), "{contents}");
+    assert!(!contents.contains("cfg(any())"), "{contents}");
+    assert!(!contents.contains("cfg(true)"), "{contents}");
+    assert!(!contents.contains("cfg_attr(false"), "{contents}");
+    for kept in [
+        "kept",
+        "value",
+        "nested",
+        "tail_macro",
+        "tail_block",
+        "extra",
+    ] {
+        assert!(contents.contains(kept), "{contents}");
+    }
+    let output = run(source, &["verify", "--deny-warnings"]);
+    assert!(output.status.success(), "{:?}", output);
+    let output = run(source, &["verify", "--rustc-arg=--cfg=feature=\"extra\""]);
+    assert!(!output.status.success(), "{:?}", output);
+    assert!(String::from_utf8_lossy(&output.stderr).contains("E0308"));
+}
+
+#[test]
+fn cfg_resolves_known_parts_of_unknown_conditions() {
+    for (attribute, active_with_extra) in [
+        (r#"cfg(all(nightly, feature = "extra"))"#, true),
+        (r#"cfg(all(nightly, feature = "extra"),)"#, true),
+        (r#"cfg(any(test, feature = "extra"))"#, true),
+        (r#"cfg(not(not(all(nightly, feature = "extra"),),))"#, true),
+        (
+            r#"cfg(any(false, all(true, nightly, feature = "extra")))"#,
+            true,
+        ),
+        (
+            r#"cfg_attr(true, cfg(all(nightly, feature = "extra")))"#,
+            true,
+        ),
+        (
+            r#"cfg(not(any(test, not(all(nightly, feature = "extra")))))"#,
+            true,
+        ),
+        (
+            r#"cfg_attr(all(nightly, feature = "extra"), cfg(test))"#,
+            false,
+        ),
+        (r#"cfg_attr(feature = "extra", cfg(test,))"#, false),
+        (
+            r#"cfg_attr(feature = "extra", cfg_attr(nightly, cfg(any(test, not(nightly)))))"#,
+            false,
+        ),
+    ] {
+        let source =
+            format!("#[codesnip::entry] pub fn sample() {{ #[{attribute}] let _: () = 1; }}");
+        for extra in [false, true] {
+            // The source config must win even when rustc enables `test`.
+            let mut args = vec!["verify", "--rustc-arg=--cfg=test"];
+            if extra {
+                args.push("--rustc-arg=--cfg=feature=\"extra\"");
+            }
+            let output = run(&source, &args);
+            assert_eq!(
+                output.status.success(),
+                extra != active_with_extra,
+                "{attribute}, extra={extra}: {output:?}"
+            );
+            if !output.status.success() {
+                assert!(String::from_utf8_lossy(&output.stderr).contains("E0308"));
+            }
+        }
+    }
+
+    let source = r#"
+        #[codesnip::entry]
+        pub fn sample() {
+            #[cfg_attr(all(nightly, feature = "extra"), allow(unused_variables))]
+            let unused = 1;
+        }
+    "#;
+    let output = run(source, &["verify", "--deny-warnings"]);
+    assert!(!output.status.success(), "{:?}", output);
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unused_variables"));
+    let output = run(
+        source,
+        &[
+            "verify",
+            "--deny-warnings",
+            "--rustc-arg=--cfg=feature=\"extra\"",
+        ],
+    );
+    assert!(output.status.success(), "{:?}", output);
+}
+
+#[test]
+fn cfg_removes_disabled_members_before_visiting_children() {
+    let source = r#"
+        #[codesnip::entry("sample", inline)]
+        mod sample {
+            pub struct S;
+            impl S {
+                #[cfg(nightly)] pub fn kept() {}
+                #[cfg(test)] pub fn removed_method() { mod removed_module; }
+                #[cfg_attr(nightly, cfg(test))]
+                pub const REMOVED: u8 = { mod removed_module; 0 };
+                #[cfg(test)] type Removed = [u8; { mod removed_module; 0 }];
+                #[cfg(test)] removed_macro! { let ghost count = 0int; }
+            }
+            pub trait T {
+                fn kept() {}
+                #[cfg(test)] fn removed_method() { mod removed_module; }
+                #[cfg(test)] const REMOVED: u8 = { mod removed_module; 0 };
+                #[cfg(test)] type Removed = [u8; { mod removed_module; 0 }];
+                #[cfg(test)] removed_macro!();
+            }
+            unsafe extern "C" {
+                pub fn kept_foreign();
+                #[cfg(test)] fn removed_foreign(_: [u8; { mod removed_module; 0 }]);
+                #[cfg(test)] static REMOVED: [u8; { mod removed_module; 0 }];
+                #[cfg(test)] type Removed;
+                #[cfg(test)] removed_macro!();
+            }
+            pub fn sample() { S::kept(); }
+            impl T for S {
+                #[cfg(feature = "extra")] fn kept() { let _: () = 1; }
+            }
+        }
+    "#;
+    let output = run(source, &["bundle", "sample"]);
+    assert!(output.status.success(), "{output:?}");
+    let contents = String::from_utf8(output.stdout).unwrap();
+    assert!(!contents.to_lowercase().contains("removed"), "{contents}");
+    assert!(!contents.contains("cfg(any())"), "{contents}");
+    assert!(contents.contains("kept_foreign"), "{contents}");
+    let output = run(source, &["verify", "--deny-warnings"]);
+    assert!(output.status.success(), "{output:?}");
+    let output = run(source, &["verify", "--rustc-arg=--cfg=feature=\"extra\""]);
+    assert!(!output.status.success(), "{output:?}");
+    assert!(String::from_utf8_lossy(&output.stderr).contains("E0308"));
+}
+
+#[test]
+fn cfg_removes_disabled_collection_elements_before_visiting_children() {
+    let source = r#"
+        #[codesnip::entry("sample", inline)]
+        mod sample {
+            pub struct Named {
+                #[cfg(test)] pub removed: [u8; { mod removed_module; 0 }],
+                #[cfg(nightly)] pub kept: u8,
+            }
+            pub struct Tuple(#[cfg(test)] [u8; { mod removed_module; 0 }], pub u8);
+            pub union Union {
+                #[cfg(test)] removed: [u8; { mod removed_module; 0 }],
+                pub kept: u8,
+            }
+            pub enum E {
+                #[cfg(test)] Removed = { mod removed_module; 0 },
+                Kept,
+            }
+            pub struct Generic<
+                #[cfg(test)] 'removed,
+                #[cfg(test)] Removed = [u8; { mod removed_module; 0 }],
+                #[cfg(test)] const REMOVED: usize = { mod removed_module; 0 },
+            >;
+            pub fn argument(#[cfg(test)] _: [u8; { mod removed_module; 0 }], kept: u8) -> u8 {
+                kept
+            }
+            impl Named {
+                pub fn method(&self, #[cfg(test)] _: [u8; { mod removed_module; 0 }], kept: u8) -> u8 {
+                    self.kept + kept
+                }
+                pub fn associated(#[cfg(test)] &self) {}
+            }
+            pub type Pointer = for<#[cfg(test)] 'removed> extern "C" fn(
+                #[cfg(test)] [u8; { mod removed_module; 0 }],
+                #[cfg(test)] ...
+            );
+            unsafe extern "C" {
+                pub fn variadic(#[cfg(test)] _: [u8; { mod removed_module; 0 }], #[cfg(test)] ...);
+            }
+            pub fn sample() {
+                let _: [u8; 1] = [1, #[cfg(feature = "extra")] 2];
+                let _: [u8; 1] = [#[cfg(test)] { mod removed_module; 0 }, 1];
+                let _: (u8,) = (#[cfg(test)] { mod removed_module; 0 }, 1);
+                let _: (u8,) = (1, #[cfg(test)] { mod removed_module; 0 });
+                let _: () = (#[cfg(test)] { mod removed_module; 0 },);
+                let _: [u8; 0] = [#[cfg(test)] { mod removed_module; 0 }];
+                let value = Named { #[cfg(test)] removed: { mod removed_module; 0 }, kept: 1 };
+                let Named { #[cfg(test)] removed, kept } = value;
+                let _: u8 = argument(#[cfg(test)] { mod removed_module; 0 }, kept);
+                let _: u8 = value.method(#[cfg(test)] { mod removed_module; 0 }, kept);
+                let _: Tuple = Tuple(#[cfg(test)] { mod removed_module; 0 }, kept);
+                let _: Generic = Generic;
+                Named::associated();
+                let closure = |#[cfg(test)] removed: [u8; { mod removed_module; 0 }], kept: u8| kept;
+                let _: u8 = closure(kept);
+                let closure = |#[cfg(test)] removed, kept| kept;
+                let _: u8 = closure(kept);
+                let _: u8 = match E::Kept {
+                    #[cfg_attr(nightly, cfg(test))]
+                    E::Removed => { mod removed_module; 0 },
+                    E::Kept => kept,
+                };
+            }
+        }
+    "#;
+    let output = run(source, &["bundle", "sample"]);
+    assert!(output.status.success(), "{output:?}");
+    let contents = String::from_utf8(output.stdout).unwrap();
+    assert!(!contents.to_lowercase().contains("removed"), "{contents}");
+    assert!(!contents.contains("cfg(any())"), "{contents}");
+    let output = run(source, &["verify", "--deny-warnings"]);
+    assert!(output.status.success(), "{output:?}");
+    let output = run(source, &["verify", "--rustc-arg=--cfg=feature=\"extra\""]);
+    assert!(!output.status.success(), "{output:?}");
+    assert!(String::from_utf8_lossy(&output.stderr).contains("E0308"));
+}
+
+#[test]
+fn cfg_matches_raw_and_plain_identifiers() {
+    let source = r##"
+        #[codesnip::entry("sample", inline)]
+        mod sample {
+            #[r#cfg(r#nightly)]
+            pub fn kept() {
+                #[r#cfg(r#test)] mod removed_module;
+                #[r#cfg_attr(r#nightly, r#cfg_attr(r#not(r#test), r#cfg(r#test)))]
+                mod removed_nested;
+                #[cfg(r#all(r#nightly, r#any(r#test, r#feature = "extra")))]
+                let _: () = 1;
+                #[cfg(r#any(r#test, r#not(r#nightly)))] mod removed_operator;
+            }
+            #[cfg(nightly)] pub fn also_kept() {}
+            #[cfg(test)] mod removed_plain;
+            #[cfg(r#feature = "enabled")] pub fn feature_kept() {}
+            #[cfg(feature = "enabled")] pub fn feature_also_kept() {}
+            #[cfg(feature = r"enabled")] pub fn raw_string_kept() {}
+            #[cfg(r#feature = "\x65nabled")] pub fn escaped_string_kept() {}
+            #[cfg(r#feature = "disabled")] mod removed_feature;
+            #[cfg(feature = "disabled")] mod removed_plain_feature;
+            #[cfg(feature = r"disabled")] mod removed_raw_string;
+            #[cfg(r#feature = "dis\u{61}bled")] mod removed_escaped_string;
+            #[cfg(feature = "r#extra")] mod removed_value;
+            #[cfg(r#false)] pub fn literal_name_kept() {}
+            #[cfg(r#true)] mod removed_literal_name;
+            pub fn sample() {
+                kept(); also_kept(); feature_kept(); feature_also_kept(); literal_name_kept();
+                raw_string_kept(); escaped_string_kept();
+            }
+        }
+    "##;
+    for (enabled, disabled, key, enabled_value, disabled_value) in [
+        ("nightly", "test", "feature", "\"enabled\"", "\"disabled\""),
+        (
+            "r#nightly",
+            "r#test",
+            "r#feature",
+            "r\"enabled\"",
+            "\"dis\\u{61}bled\"",
+        ),
+    ] {
+        let config = serde_json::json!({
+            "cfg_enable": [enabled, format!("{key} = {enabled_value}"), "r#false"],
+            "cfg_disable": [disabled, format!("{key} = {disabled_value}"), "feature = \"r#extra\"", "r#true"]
+        });
+        let output = run_with_config(source, &["bundle", "sample"], config.clone());
+        assert!(output.status.success(), "{output:?}");
+        let contents = String::from_utf8(output.stdout).unwrap();
+        assert!(!contents.contains("removed"), "{contents}");
+        let output = run_with_config(source, &["verify", "--deny-warnings"], config.clone());
+        assert!(output.status.success(), "{output:?}");
+        let output = run_with_config(
+            source,
+            &["verify", "--rustc-arg=--cfg=feature=\"extra\""],
+            config.clone(),
+        );
+        assert!(!output.status.success(), "{output:?}");
+        assert!(String::from_utf8_lossy(&output.stderr).contains("E0308"));
+
+        let conditional = r#"
+            #[codesnip::entry("sample", inline)]
+            #[r#cfg_attr(r#feature = "extra", r#cfg(r#test))]
+            mod conditional {
+                pub fn conditional() { let _: () = 1; }
+            }
+        "#;
+        for extra in [false, true] {
+            let mut args = vec!["verify"];
+            if extra {
+                args.push("--rustc-arg=--cfg=feature=\"extra\"");
+            }
+            let output = run_with_config(conditional, &args, config.clone());
+            assert_eq!(output.status.success(), extra, "{output:?}");
+            if !extra {
+                assert!(String::from_utf8_lossy(&output.stderr).contains("E0308"));
+            }
+        }
+    }
+}
+
+#[test]
+fn cfg_skips_disabled_files_and_external_module_contents() {
+    let source = "#![cfg(test)] mod removed_module; #[codesnip::entry] pub fn removed() {}";
+    let output = run(source, &["list"]);
+    assert!(output.status.success(), "{output:?}");
+    assert!(output.stdout.is_empty(), "{output:?}");
+    let output = run(
+        "#![cfg(nightly)] #[codesnip::entry] pub fn kept() {}",
+        &["list"],
+    );
+    assert!(output.status.success(), "{output:?}");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("kept"));
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("lib.rs");
+    std::fs::write(
+        &path,
+        r#"
+            #[codesnip::entry("sample", inline)]
+            #[r#cfg_attr(nightly, r#path = "external.rs")]
+            mod renamed;
+            #[codesnip::entry("sample")] pub fn kept() {}
+        "#,
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("external.rs"),
+        "#![cfg_attr(nightly, cfg(test))] mod removed_module; pub fn removed() {}",
+    )
+    .unwrap();
+    let config = serde_json::json!({ "sources": [{ "path": path }] });
+    let output = run_with_config("", &["bundle", "sample"], config.clone());
+    assert!(output.status.success(), "{output:?}");
+    let contents = String::from_utf8(output.stdout).unwrap();
+    assert!(contents.contains("kept"), "{contents}");
+    assert!(!contents.contains("removed"), "{contents}");
+    let output = run_with_config("", &["verify", "--deny-warnings"], config);
+    assert!(output.status.success(), "{output:?}");
+
+    let config = serde_json::json!({
+        "sources": [{ "path": path }], "cfg_enable": ["nightly", "test"], "cfg_disable": []
+    });
+    let output = run_with_config("", &["bundle", "sample"], config);
+    assert!(!output.status.success(), "{output:?}");
+    assert!(String::from_utf8_lossy(&output.stderr).contains("removed_module"));
+}
+
+#[test]
+fn cfg_preserves_conditions_of_files_and_parent_modules() {
+    for (prefix, active_with_extra) in [
+        ("#![cfg(all(nightly, feature = \"extra\"))]", true),
+        ("#[cfg_attr(feature = \"extra\", cfg(test))]", false),
+    ] {
+        let source = format!(
+            "{prefix} mod outer {{ mod inner {{ #[codesnip::entry] pub fn sample() {{ let _: () = 1; }} }} }}"
+        );
+        for extra in [false, true] {
+            let mut args = vec!["verify"];
+            if extra {
+                args.push("--rustc-arg=--cfg=feature=\"extra\"");
+            }
+            let output = run(&source, &args);
+            assert_eq!(
+                output.status.success(),
+                extra != active_with_extra,
+                "{output:?}"
+            );
+            if !output.status.success() {
+                assert!(String::from_utf8_lossy(&output.stderr).contains("E0308"));
+            }
+        }
+    }
+}
+
+#[test]
 fn and_entries_are_bundled_and_verified() {
     let source = r#"
         #[codesnip::entry] pub struct A;
