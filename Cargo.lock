@@ -229,7 +229,7 @@ dependencies = [
 
 [[package]]
 name = "codesnip"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -252,7 +252,7 @@ dependencies = [
 
 [[package]]
 name = "codesnip_attr"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "codesnip_core",
  "proc-macro2",
@@ -262,7 +262,7 @@ dependencies = [
 
 [[package]]
 name = "codesnip_core"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "proc-macro2",
  "quote",
