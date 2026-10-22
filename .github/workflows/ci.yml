@@ -76,11 +76,13 @@ jobs:
         include:
           - { toolchain: stable-x86_64-pc-windows-msvc  , target: x86_64-pc-windows-msvc  , os: windows-latest, exe-suffix: .exe, archive-suffix: .zip }
           - { toolchain: stable-aarch64-apple-darwin    , target: aarch64-apple-darwin    , os: macos-latest  , exe-suffix: ''   , archive-suffix: .tgz }
-          - { toolchain: stable-x86_64-unknown-linux-gnu, target: x86_64-unknown-linux-gnu, os: ubuntu-latest , exe-suffix: ''   , archive-suffix: .tgz }
+          - { toolchain: stable-x86_64-unknown-linux-gnu, target: x86_64-unknown-linux-musl, os: ubuntu-latest , exe-suffix: ''   , archive-suffix: .tgz }
 
-    name: Upload (${{ matrix.toolchain }})
+    name: Distribution (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
-    if: startsWith(github.ref, 'refs/tags/')
+    env:
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
 
     steps:
       - name: Checkout
@@ -90,11 +92,57 @@ jobs:
         uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with:
           toolchain: ${{ matrix.toolchain }}
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes musl-tools
 
       - name: cargo-install
-        run: cargo install --path ./codesnip -v --locked
+        run: cargo install --path ./codesnip -v --locked --target ${{ matrix.target }} --features vendored
+
+      - name: Check Linux binary dependencies
+        if: runner.os == 'Linux'
+        run: |
+          dependencies="$(readelf -d "$HOME/.cargo/bin/cargo-codesnip")"
+          printf '%s\n' "$dependencies"
+          if [[ "$dependencies" == *'(NEEDED)'* ]]; then
+            echo 'The Linux binary must not require shared libraries.' >&2
+            exit 1
+          fi
+
+      - name: Check macOS binary dependencies
+        if: runner.os == 'macOS'
+        run: |
+          dependencies="$(otool -L "$HOME/.cargo/bin/cargo-codesnip")"
+          printf '%s\n' "$dependencies"
+          printf '%s\n' "$dependencies" | awk '
+            NR > 1 && $1 !~ /^\/(usr\/lib|System\/Library)\// { print "Unexpected dependency: " $1; failed = 1 }
+            END { exit failed }
+          '
+
+      - name: Check Windows binary dependencies
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $version = (Get-Content "$vs\VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt" -Raw).Trim()
+          $dependencies = & "$vs\VC\Tools\MSVC\$version\bin\Hostx64\x64\dumpbin.exe" /DEPENDENTS "$env:USERPROFILE\.cargo\bin\cargo-codesnip.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $dependencies
+          if ($dependencies -match '(?i)(vcruntime|msvcp|api-ms-win-crt-|libssl|libcrypto)') {
+            throw 'The Windows binary must not require external OpenSSL or C/C++ runtimes.'
+          }
+
+      - name: Check binary startup
+        run: '"$HOME/.cargo/bin/cargo-codesnip${{ matrix.exe-suffix }}" --version'
+        shell: bash
 
       - name: Create an asset
+        if: startsWith(github.ref, 'refs/tags/')
         id: asset
         run: |
           PKG_NAME=codesnip
@@ -113,6 +161,7 @@ jobs:
         shell: bash
 
       - name: Upload the artifact
+        if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: assets-${{ matrix.toolchain }}

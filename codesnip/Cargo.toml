@@ -17,6 +17,9 @@ doc = false
 name = "math"
 crate-type = ["lib"]
 
+[features]
+vendored = ["git2/vendored-libgit2", "git2/vendored-openssl"]
+
 [dependencies]
 anyhow = "1.0.104"
 cargo_metadata = "0.23.1"

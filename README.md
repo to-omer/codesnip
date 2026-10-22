@@ -6,6 +6,12 @@ $ rustup component add rustfmt
 $ cargo install codesnip
 ```
 
+Prebuilt binaries can also be installed with [cargo-binstall](https://github.com/cargo-bins/cargo-binstall):
+
+```sh
+$ cargo binstall codesnip
+```
+
 ## Dependencies
 ```toml
 [dependencies]
