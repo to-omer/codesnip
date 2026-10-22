@@ -13,13 +13,13 @@ proc-macro2 = "1.0.107"
 quote = "1.0.47"
 rust_minify = "0.2.0"
 serde = { version = "1.0.229", features = ["derive"] }
-syn = { version = "3.0.6", features = [
+syn = { version = "3.0.9", features = [
     "full",
     "extra-traits",
     "visit",
     "visit-mut",
 ] }
-thiserror = "2.0.20"
+thiserror = "2.0.21"
 
 [[example]]
 name = "mod_path"
