@@ -1,3 +1,8 @@
+#![allow(
+    unused_attributes,
+    reason = "expanded modules preserve path attributes from the input"
+)]
+
 mod a {
     //! a.rs
 }
